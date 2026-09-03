@@ -2,13 +2,69 @@
 const signal=(skill,jobDemand,demandGrowth,candidateSupply,sector,roles,o={})=>({skill,jobDemand,demandGrowth,candidateSupply,trainingCount:o.trainingCount||Math.round(candidateSupply/18),placementCount:o.placementCount||Math.round(candidateSupply/6),employerCount:o.employerCount||Math.round(jobDemand/95),sector,roles,curriculumCoverage:o.curriculumCoverage??'None',trend:o.trend||'Growing',priority:o.priority||'High',futureDemand:o.futureDemand||Math.round(jobDemand*(1+demandGrowth/100))})
 export const normalizeSkill=(value='')=>String(value).trim().replace(/\s+/g,' ').toLowerCase()
 export const employerSignals={
- Pune:[{employer:'NovaPeak Systems',role:'Java Backend Developer',district:'Pune',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},{employer:'ApexCloud Labs',role:'Cloud Engineer',district:'Pune',skills:['Cloud Computing','AWS','Docker','Git','Python'],signalType:'representative'},{employer:'BrightCore Analytics',role:'Data Analyst',district:'Pune',skills:['Python','SQL','Data Analytics','Git'],signalType:'representative'},{employer:'HarborLogic Studio',role:'AI/ML Engineer',district:'Pune',skills:['Python','Machine Learning','SQL','Docker','Git'],signalType:'representative'}],
- Mumbai:[{employer:'Silverline Finance',role:'Cybersecurity Analyst',district:'Mumbai',skills:['Cybersecurity','Python','Git','SQL'],signalType:'representative'},{employer:'HarborGrid Systems',role:'Cloud Engineer',district:'Mumbai',skills:['Cloud Computing','AWS','Docker','Git','Python'],signalType:'representative'},{employer:'MetroSignal Labs',role:'Data Analyst',district:'Mumbai',skills:['Python','SQL','Data Analytics','Git'],signalType:'representative'},{employer:'Nexora Fintech',role:'Java Backend Developer',district:'Mumbai',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'}],
- Nagpur:[{employer:'TechNova Solutions',role:'Java Backend Developer',district:'Nagpur',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},{employer:'Vidarbha Digital Systems',role:'Software Engineer',district:'Nagpur',skills:['Java','SQL','Spring Boot','PostgreSQL','Git'],signalType:'representative'},{employer:'OrangeByte Technologies',role:'Backend Developer',district:'Nagpur',skills:['Java','Spring Boot','REST APIs','Docker'],signalType:'representative'},{employer:'Central India Systems',role:'Data Analyst',district:'Nagpur',skills:['Python','SQL','Data Analytics','Git'],signalType:'representative'}],
- Nashik:[{employer:'PrecisionForge Systems',role:'Java Backend Developer',district:'Nashik',skills:['Java','SQL','Docker','Git'],signalType:'representative'},{employer:'IndusFlow Labs',role:'Cloud Engineer',district:'Nashik',skills:['Cloud Computing','AWS','Docker','Git','Python'],signalType:'representative'},{employer:'Saffron Automation',role:'Data Analyst',district:'Nashik',skills:['Python','SQL','Data Analytics','Industrial IoT'],signalType:'representative'},{employer:'ValleyWorks Systems',role:'AI/ML Engineer',district:'Nashik',skills:['Python','Machine Learning','SQL','Docker'],signalType:'representative'}],
- Kolhapur:[{employer:'Shivaji Industrial Systems',role:'Java Backend Developer',district:'Kolhapur',skills:['Java','SQL','Spring Boot','REST APIs'],signalType:'representative'},{employer:'EdgeWorks Manufacturing',role:'Automation Engineer',district:'Kolhapur',skills:['Industrial Automation','Python','SQL','Data Analytics'],signalType:'representative'},{employer:'Aerial Systems',role:'Embedded Systems Engineer',district:'Kolhapur',skills:['Embedded Systems','Python','Git','C++'],signalType:'representative'},{employer:'Greenbelt Labs',role:'Full Stack Developer',district:'Kolhapur',skills:['JavaScript','React','REST APIs','Git','Docker'],signalType:'representative'}],
- Solapur:[{employer:'Pearl Digital Systems',role:'Full Stack Developer',district:'Solapur',skills:['JavaScript','React','REST APIs','Git','Docker'],signalType:'representative'},{employer:'Horizon Services',role:'Cloud Engineer',district:'Solapur',skills:['Cloud Computing','AWS','Docker','Python'],signalType:'representative'},{employer:'SolapurEdge Analytics',role:'Data Analyst',district:'Solapur',skills:['Python','SQL','Data Analytics','Git'],signalType:'representative'},{employer:'S3 Digital',role:'Java Backend Developer',district:'Solapur',skills:['Java','Spring Boot','REST APIs','Git'],signalType:'representative'}],
- 'Chhatrapati Sambhajinagar':[ {employer:'Sutra Manufacturing',role:'Java Backend Developer',district:'Chhatrapati Sambhajinagar',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},{employer:'PulseForge Systems',role:'Data Analyst',district:'Chhatrapati Sambhajinagar',skills:['Python','SQL','Data Analytics','Git'],signalType:'representative'},{employer:'Riverstone Automation',role:'Industrial Engineer',district:'Chhatrapati Sambhajinagar',skills:['Industrial Automation','Python','SQL','Data Analytics'],signalType:'representative'},{employer:'Meridian Tech',role:'Cloud Engineer',district:'Chhatrapati Sambhajinagar',skills:['Cloud Computing','AWS','Docker','Git'],signalType:'representative'}]
+ Pune:[
+  {employer:'Pune CloudWorks',role:'Cloud Engineer',district:'Pune',skills:['AWS','Docker','Kubernetes','Terraform','Git'],signalType:'representative'},
+  {employer:'Deccan Software Systems',role:'Cloud Engineer',district:'Pune',skills:['AWS','Docker','Linux','Git','Terraform'],signalType:'representative'},
+  {employer:'Maharashtra Cloud Systems',role:'Cloud Engineer',district:'Pune',skills:['AWS','Docker','Kubernetes','Git','Python'],signalType:'representative'},
+  {employer:'Sapphire Cloud Labs',role:'Cloud Engineer',district:'Pune',skills:['AWS','Docker','Git','Kubernetes','Linux'],signalType:'representative'},
+  {employer:'Pune DevOps Grid',role:'DevOps Engineer',district:'Pune',skills:['AWS','Docker','Kubernetes','Git','Terraform'],signalType:'representative'},
+  {employer:'NovaPeak Systems',role:'Java Backend Developer',district:'Pune',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},
+  {employer:'Pune Technology Group',role:'Java Backend Developer',district:'Pune',skills:['Java','SQL','Spring Boot','PostgreSQL','Git'],signalType:'representative'},
+  {employer:'Western Digital Labs',role:'Data Analyst',district:'Pune',skills:['Python','SQL','Data Analytics','Excel','Git'],signalType:'representative'},
+  {employer:'Deccan Digital Works',role:'Full Stack Developer',district:'Pune',skills:['JavaScript','React','REST APIs','Git','Docker'],signalType:'representative'}
+ ],
+ Mumbai:[
+  {employer:'HarborGrid Systems',role:'Cloud Engineer',district:'Mumbai',skills:['AWS','Docker','Kubernetes','Git','Terraform'],signalType:'representative'},
+  {employer:'MetroSignal Labs',role:'Data Analyst',district:'Mumbai',skills:['Python','SQL','Data Analytics','Excel','Git'],signalType:'representative'},
+  {employer:'Mumbai Digital Works',role:'Data Analyst',district:'Mumbai',skills:['Python','SQL','Tableau','Git','Data Analytics'],signalType:'representative'},
+  {employer:'FinEdge Analytics',role:'Data Analyst',district:'Mumbai',skills:['Python','SQL','Data Analytics','Power BI','Git'],signalType:'representative'},
+  {employer:'Bharat Metrics',role:'Data Analyst',district:'Mumbai',skills:['Python','SQL','Data Analytics','Excel','Tableau'],signalType:'representative'},
+  {employer:'Silverline Finance',role:'Cybersecurity Analyst',district:'Mumbai',skills:['Cybersecurity','Python','Git','SQL','Threat Modeling'],signalType:'representative'},
+  {employer:'Nexora Fintech',role:'Java Backend Developer',district:'Mumbai',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},
+  {employer:'Northline Systems',role:'Software Engineer',district:'Mumbai',skills:['Java','Git','REST APIs','SQL','Docker'],signalType:'representative'}
+ ],
+ Nagpur:[
+  {employer:'Central India Systems',role:'Data Analyst',district:'Nagpur',skills:['Python','SQL','Data Analytics','Excel','Git'],signalType:'representative'},
+  {employer:'Vidarbha Digital Solutions',role:'Software Engineer',district:'Nagpur',skills:['Java','SQL','Spring Boot','PostgreSQL','Git'],signalType:'representative'},
+  {employer:'OrangeByte Technologies',role:'Backend Developer',district:'Nagpur',skills:['Java','Spring Boot','REST APIs','Docker','Git'],signalType:'representative'},
+  {employer:'Nagpur CloudWorks',role:'Cloud Engineer',district:'Nagpur',skills:['AWS','Docker','Linux','Git','Kubernetes'],signalType:'representative'},
+  {employer:'Central Tech Systems',role:'Java Backend Developer',district:'Nagpur',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},
+  {employer:'MahaTech Logistics',role:'Data Analyst',district:'Nagpur',skills:['Python','SQL','Data Analytics','Tableau','Git'],signalType:'representative'},
+  {employer:'Indigo Digital Systems',role:'Java Backend Developer',district:'Nagpur',skills:['Java','SQL','REST APIs','Git','PostgreSQL'],signalType:'representative'},
+  {employer:'Nagpur Tech Edge',role:'Java Backend Developer',district:'Nagpur',skills:['Java','Spring Boot','SQL','Docker','Git'],signalType:'representative'}
+ ],
+ Nashik:[
+  {employer:'PrecisionForge Systems',role:'Java Backend Developer',district:'Nashik',skills:['Java','SQL','Docker','Git','REST APIs'],signalType:'representative'},
+  {employer:'IndusFlow Labs',role:'Cloud Engineer',district:'Nashik',skills:['Cloud Computing','AWS','Docker','Git','Python'],signalType:'representative'},
+  {employer:'Saffron Automation',role:'Data Analyst',district:'Nashik',skills:['Python','SQL','Data Analytics','Industrial IoT','Git'],signalType:'representative'},
+  {employer:'ValleyWorks Systems',role:'AI/ML Engineer',district:'Nashik',skills:['Python','Machine Learning','SQL','Docker','Git'],signalType:'representative'},
+  {employer:'Nashik Manufacturing Works',role:'Industrial Automation Engineer',district:'Nashik',skills:['Industrial Automation','Python','SQL','PLC','Data Analytics'],signalType:'representative'},
+  {employer:'ShreeWorks Tech',role:'Software Engineer',district:'Nashik',skills:['Java','Git','REST APIs','SQL','Docker'],signalType:'representative'}
+ ],
+ Kolhapur:[
+  {employer:'Shivaji Industrial Systems',role:'Java Backend Developer',district:'Kolhapur',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},
+  {employer:'Kolhapur Digital Works',role:'Java Backend Developer',district:'Kolhapur',skills:['Java','SQL','Git','REST APIs','Docker'],signalType:'representative'},
+  {employer:'Western India Software Labs',role:'Backend Developer',district:'Kolhapur',skills:['Java','SQL','Spring Boot','Docker','Git'],signalType:'representative'},
+  {employer:'Deccan Technology Systems',role:'Software Engineer',district:'Kolhapur',skills:['Java','SQL','PostgreSQL','Git','Docker'],signalType:'representative'},
+  {employer:'K-Works Technology',role:'Backend Developer',district:'Kolhapur',skills:['Java','SQL','REST APIs','Docker','Git'],signalType:'representative'},
+  {employer:'Sahyadri Industrial Automation',role:'Industrial Automation Engineer',district:'Kolhapur',skills:['Industrial Automation','Python','SQL','Data Analytics','PLC'],signalType:'representative'}
+ ],
+ Solapur:[
+  {employer:'Pearl Digital Systems',role:'Full Stack Developer',district:'Solapur',skills:['JavaScript','React','REST APIs','Git','Docker'],signalType:'representative'},
+  {employer:'Horizon Services',role:'Cloud Engineer',district:'Solapur',skills:['Cloud Computing','AWS','Docker','Python','Git'],signalType:'representative'},
+  {employer:'SolapurEdge Analytics',role:'Data Analyst',district:'Solapur',skills:['Python','SQL','Data Analytics','Git','Excel'],signalType:'representative'},
+  {employer:'S3 Digital',role:'Java Backend Developer',district:'Solapur',skills:['Java','Spring Boot','REST APIs','Git','Docker'],signalType:'representative'},
+  {employer:'Solapur Industrial Systems',role:'Automation Engineer',district:'Solapur',skills:['Industrial Automation','Python','SQL','Data Analytics','PLC'],signalType:'representative'},
+  {employer:'Southern IT Works',role:'Software Engineer',district:'Solapur',skills:['Java','Git','REST APIs','SQL','Docker'],signalType:'representative'}
+ ],
+ 'Chhatrapati Sambhajinagar':[
+  {employer:'Sutra Manufacturing',role:'Java Backend Developer',district:'Chhatrapati Sambhajinagar',skills:['Java','SQL','Spring Boot','REST APIs','Git'],signalType:'representative'},
+  {employer:'PulseForge Systems',role:'Data Analyst',district:'Chhatrapati Sambhajinagar',skills:['Python','SQL','Data Analytics','Git','Excel'],signalType:'representative'},
+  {employer:'Riverstone Automation',role:'Industrial Engineer',district:'Chhatrapati Sambhajinagar',skills:['Industrial Automation','Python','SQL','Data Analytics','PLC'],signalType:'representative'},
+  {employer:'Meridian Tech',role:'Cloud Engineer',district:'Chhatrapati Sambhajinagar',skills:['Cloud Computing','AWS','Docker','Git','Linux'],signalType:'representative'},
+  {employer:'Deccan Works Systems',role:'Software Engineer',district:'Chhatrapati Sambhajinagar',skills:['Java','Git','REST APIs','SQL','Docker'],signalType:'representative'},
+  {employer:'Aurora Industrial Labs',role:'Automation Engineer',district:'Chhatrapati Sambhajinagar',skills:['Industrial Automation','Python','PLC','SQL','Data Analytics'],signalType:'representative'}
+ ]
 }
 export const districts={
  Pune:{jobs:8240,sectors:['Software product','AI services','Engineering'],roles:['Java Backend Developer','Cloud Engineer','Data Analyst','AI/ML Engineer'],skills:['AI / ML','Cloud Computing','Data Engineering','Spring Boot','DevOps','Docker','SQL'],insight:'Software, AI/ML and cloud roles create the strongest representative shortage signals.',signals:[signal('AI / ML',8240,18,2910,'AI services',['AI/ML Engineer'],{priority:'Critical'}),signal('Cloud Computing',6720,15,3500,'Software product',['Cloud Engineer','Java Backend Developer']),signal('Data Engineering',6400,17,2900,'Software product',['Data Analyst']),signal('Spring Boot',5900,12,3300,'Software product',['Java Backend Developer']),signal('DevOps',5100,16,2600,'Engineering',['Cloud Engineer']),signal('Docker',4600,14,2850,'Engineering',['Java Backend Developer','Cloud Engineer'],{priority:'Moderate'}),signal('SQL',5400,8,4300,'Software product',['Java Backend Developer','Data Analyst'],{priority:'Moderate'})],employerSignals:employerSignals.Pune},
@@ -32,6 +88,51 @@ export const getDistrictMarketData=(district='Pune')=>({
   employerSignals: districts[district]?.employerSignals || [],
   signals: districts[district]?.signals || []
 })
+export const readCompanySubmissions=()=>{
+  if (typeof window === 'undefined' || !window.localStorage) return []
+  try {
+    const stored=JSON.parse(window.localStorage.getItem('skillbridge-company-submissions') || '[]')
+    if(!Array.isArray(stored)) return []
+    return stored.map((item={})=>{
+      const required=Array.isArray(item.requiredSkills)?item.requiredSkills:[]
+      const preferred=Array.isArray(item.preferredSkills)?item.preferredSkills:[]
+      const emerging=Array.isArray(item.emergingSkills)?item.emergingSkills:[]
+      const companyValue=item.company || item.companyName || item.employer || 'Company'
+      const skills=[...required,...preferred,...emerging].map(skill=>String(skill).trim()).filter(Boolean)
+      return {
+        ...item,
+        company: companyValue,
+        companyName: item.companyName || companyValue,
+        employer: item.employer || companyValue,
+        district: item.district || 'Pune',
+        role: item.role || 'Java Backend Developer',
+        requiredSkills: required.map(skill=>String(skill).trim()).filter(Boolean),
+        preferredSkills: preferred.map(skill=>String(skill).trim()).filter(Boolean),
+        emergingSkills: emerging.map(skill=>String(skill).trim()).filter(Boolean),
+        skills,
+        signalType: item.signalType || 'company-submitted signal'
+      }
+    })
+  } catch {
+    return []
+  }
+}
+export const getCombinedEmployerSignals=(district='Pune',role=null,submittedSignals=readCompanySubmissions())=>{
+  const districtSignals=[...(employerSignals[district] || []), ...(Array.isArray(submittedSignals) ? submittedSignals : []).filter(item=>normalizeSkill(item.district)===normalizeSkill(district))]
+  if(!role) return districtSignals
+
+  const normalizedRole=normalizeSkill(role)
+  const matches=getRoleMatches(normalizedRole)
+  const exactRoleSignals=districtSignals.filter(item=>matches.includes(normalizeSkill(item.role)))
+  if(exactRoleSignals.length) return exactRoleSignals
+
+  const roleTokens=normalizedRole.split(/\s+/).filter(token=>token.length>2 && !['and','for','the'].includes(token))
+  const fallback=districtSignals.filter(item=>{
+    const entryRole=normalizeSkill(item.role)
+    return roleTokens.some(token=>entryRole.includes(token))
+  })
+  return fallback.length ? fallback : districtSignals
+}
 const roleFamilyMap={
   'java backend developer':['java backend developer','backend developer','software engineer','java developer','backend engineer'],
   'cloud engineer':['cloud engineer','devops engineer','cloud architect','site reliability engineer','cloud infrastructure engineer'],

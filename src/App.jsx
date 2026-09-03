@@ -35,6 +35,7 @@ import {
   districts,
   employerSignals,
   gapClassification,
+  getCombinedEmployerSignals,
   getEmployerSignals,
   getSkillEvidence,
   normalizeSkill,
@@ -143,8 +144,8 @@ function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', expl
         </div>
 
         <div className="evidence-source-summary">
-          <span>{evidence.sourceSummary.representative} representative employer signals</span>
-          <span>{evidence.sourceSummary.companySubmitted} company-submitted signal</span>
+          <span>{evidence.sourceSummary.representative} representative employer {evidence.sourceSummary.representative === 1 ? 'signal' : 'signals'}</span>
+          <span>{evidence.sourceSummary.companySubmitted} company-submitted {evidence.sourceSummary.companySubmitted === 1 ? 'signal' : 'signals'}</span>
           <strong>Total relevant signals: {evidence.totalRelevantEmployers}</strong>
         </div>
 
@@ -678,54 +679,104 @@ function Student({ district }) {
   const [chosen, setChosen] = useState(['Java', 'HTML', 'CSS', 'Python']);
   const [done, setDone] = useState(false);
   const [evidence, setEvidence] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
 
-  const profile = districts[location];
-  const core = roleRequirements[role];
+  const buildStudentAnalysis = (targetRole, targetDistrict, currentSkills, signalList) => {
+    const combinedSignals = Array.isArray(signalList) && signalList.length ? signalList : getCombinedEmployerSignals(targetDistrict, targetRole);
+    const currentSkillSet = new Set((currentSkills || []).map((skill) => normalizeSkill(skill)));
+    const skillMap = new Map();
+
+    combinedSignals.forEach((signal) => {
+      const required = Array.isArray(signal.requiredSkills) ? signal.requiredSkills : [];
+      const preferred = Array.isArray(signal.preferredSkills) ? signal.preferredSkills : [];
+      const emerging = Array.isArray(signal.emergingSkills) ? signal.emergingSkills : [];
+      const skillList = Array.isArray(signal.skills) ? signal.skills : [];
+
+      if (!skillList.length && !required.length && !preferred.length && !emerging.length) {
+        return;
+      }
+
+      [...new Set(skillList.map((item) => String(item).trim()).filter(Boolean))].forEach((skill) => {
+        const key = normalizeSkill(skill);
+        const entry = skillMap.get(key) || {
+          skill,
+          count: 0,
+          total: Math.max(combinedSignals.length, 1),
+          required: 0,
+          preferred: 0,
+          emerging: 0,
+        };
+
+        entry.count += 1;
+        if (required.some((item) => normalizeSkill(item) === key)) entry.required += 1;
+        if (preferred.some((item) => normalizeSkill(item) === key)) entry.preferred += 1;
+        if (emerging.some((item) => normalizeSkill(item) === key)) entry.emerging += 1;
+
+        skillMap.set(key, entry);
+      });
+    });
+
+    const recommendations = [...skillMap.values()]
+      .map((entry) => {
+        const weight = entry.required > 0 ? 3 : entry.preferred > 0 ? 2 : entry.emerging > 0 ? 1 : 1;
+        const demandRatio = entry.total ? ((entry.count / entry.total) * 100) : 0;
+        const score = demandRatio + (entry.required * 28) + (entry.preferred * 14) + (entry.emerging * 9) + (weight * 10);
+        return {
+          skill: entry.skill,
+          source: entry.required > 0 ? 'REQUIRED SKILL' : entry.preferred > 0 ? 'PREFERRED SKILL' : entry.emerging > 0 ? 'EMERGING SKILL' : 'DISTRICT MARKET SKILL',
+          score,
+          count: entry.count,
+          total: entry.total,
+          required: entry.required,
+          preferred: entry.preferred,
+          emerging: entry.emerging,
+        };
+      })
+      .filter((item) => !currentSkillSet.has(normalizeSkill(item.skill)))
+      .sort((a, b) => b.score - a.score);
+
+    const roleMatches = (roleRequirements[targetRole] || []).filter((skill) => currentSkillSet.has(normalizeSkill(skill)));
+    const completion = Math.round((roleMatches.length / Math.max(roleRequirements[targetRole]?.length || 1, 1)) * 100);
+    const strengths = (roleRequirements[targetRole] || []).filter((skill) => currentSkillSet.has(normalizeSkill(skill)));
+
+    return {
+      recommendations,
+      missing: recommendations,
+      matched: roleMatches,
+      completion,
+      strengths,
+      signals: combinedSignals,
+    };
+  };
 
   const recommendations = useMemo(() => {
-    const market = profile.signals.filter((signal) => signal.roles.includes(role));
-    const bySkill = new Map(market.map((signal) => [signal.skill, signal]));
-
-    const coreItems = core.map((skill) => ({
-      skill,
-      source: 'CORE ROLE SKILL',
-      signal: bySkill.get(skill),
-      score: bySkill.get(skill) ? 80 + calcGap(bySkill.get(skill)) / 5 : 65,
-    }));
-
-    const marketItems = market
-      .filter((signal) => !core.includes(signal.skill))
-      .map((signal) => ({
-        skill: signal.skill,
-        source: signal.demandGrowth >= 15 ? 'EMERGING SKILL' : 'DISTRICT MARKET SKILL',
-        signal,
-        score: 45 + calcGap(signal) / 3,
-      }));
-
-    return [...coreItems, ...marketItems].sort((a, b) => b.score - a.score);
-  }, [core, profile.signals, role]);
+    const nextAnalysis = analysis || buildStudentAnalysis(role, location, chosen, getCombinedEmployerSignals(location, role));
+    return nextAnalysis.recommendations;
+  }, [analysis, chosen, location, role]);
 
   const missing = recommendations.filter((item) => !chosen.includes(item.skill));
-  const matched = core.filter((skill) => chosen.includes(skill));
-  const completion = Math.round((matched.length / core.length) * 100);
-  const strengths = chosen.filter((skill) => core.includes(skill));
+  const matched = (roleRequirements[role] || []).filter((skill) => chosen.includes(skill));
+  const completion = Math.round((matched.length / Math.max(roleRequirements[role]?.length || 1, 1)) * 100);
+  const strengths = (roleRequirements[role] || []).filter((skill) => chosen.includes(skill));
 
   const getPriorityMeta = (item) => {
-    if (!item.signal) return { label: 'HIGH PRIORITY', tone: 'amber' };
-    if (item.source === 'EMERGING SKILL' || item.signal.demandGrowth >= 15) return { label: 'EMERGING', tone: 'blue' };
-    if (calcGap(item.signal) >= 35) return { label: 'HIGH PRIORITY', tone: 'red' };
+    if (item.source === 'EMERGING SKILL') return { label: 'EMERGING', tone: 'blue' };
+    if (item.source === 'REQUIRED SKILL' || item.required > 0) return { label: 'HIGH PRIORITY', tone: 'red' };
+    if (item.source === 'PREFERRED SKILL' || item.preferred > 0) return { label: 'MEDIUM PRIORITY', tone: 'amber' };
     return { label: 'MEDIUM PRIORITY', tone: 'amber' };
   };
 
   const getExplanation = (item) => {
-    if (!item.signal) return 'Frequently requested for the selected role and local market.';
-    if (item.source === 'EMERGING SKILL' || item.signal.demandGrowth >= 15) {
-      return 'Emerging demand signal with strong local momentum and a clear market fit opportunity.';
+    if (item.source === 'REQUIRED SKILL') {
+      return `This skill is required in ${item.count} relevant employer signals for ${role} in ${location}, including company-submitted requirements.`;
     }
-    if (calcGap(item.signal) >= 30) {
-      return 'Strong representative employer signal + curriculum gap + local supply gap.';
+    if (item.source === 'PREFERRED SKILL') {
+      return `This skill appears as a preferred capability across employer demand signals in ${location} for the ${role} role.`;
     }
-    return 'Common supporting skill across relevant employer signals for the selected market.';
+    if (item.source === 'EMERGING SKILL') {
+      return 'This skill is emerging in the market and signals a strong future readiness opportunity.';
+    }
+    return 'This skill appears across relevant employer signals and is a useful market-aligned learning priority.';
   };
 
   const openEvidence = (item) => {
@@ -736,7 +787,15 @@ function Student({ district }) {
       skill: item.skill,
       priority: priorityMeta.label,
       explanation: getExplanation(item),
+      submittedSignals: getCombinedEmployerSignals(location, role),
     });
+  };
+
+  const handleAnalyzeSkillGap = () => {
+    const nextAnalysis = buildStudentAnalysis(role, location, chosen, getCombinedEmployerSignals(location, role));
+    setAnalysis(nextAnalysis);
+    setDone(true);
+    setEvidence(null);
   };
 
   const toggleSkill = (skill) => {
@@ -755,7 +814,7 @@ function Student({ district }) {
         <section className="card form-card">
           <label>
             Target role
-            <select value={role} onChange={(event) => { setRole(event.target.value); setDone(false); setEvidence(null); }}>
+            <select value={role} onChange={(event) => { setRole(event.target.value); setDone(false); setAnalysis(null); setEvidence(null); }}>
               {Object.keys(roleRequirements).map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -766,7 +825,7 @@ function Student({ district }) {
 
           <label>
             Target market
-            <select value={location} onChange={(event) => { setLocation(event.target.value); setDone(false); setEvidence(null); }}>
+            <select value={location} onChange={(event) => { setLocation(event.target.value); setDone(false); setAnalysis(null); setEvidence(null); }}>
               {Object.keys(districts).map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -790,7 +849,7 @@ function Student({ district }) {
             ))}
           </div>
 
-          <button className="primary" onClick={() => setDone(true)}>
+          <button className="primary" onClick={handleAnalyzeSkillGap}>
             Analyze my skill gap <ChevronRight size={17} />
           </button>
           <p className="prototype-note">Representative prototype data</p>
@@ -1127,6 +1186,30 @@ function Curriculum({ district, setDistrict }) {
 
 function Company({ district, setDistrict }) {
   const STORAGE_KEY = 'skillbridge-company-submissions';
+  const normalizeContribution = (item = {}) => {
+    const required = Array.isArray(item.requiredSkills) ? item.requiredSkills : [];
+    const preferred = Array.isArray(item.preferredSkills) ? item.preferredSkills : [];
+    const emerging = Array.isArray(item.emergingSkills) ? item.emergingSkills : [];
+    const companyValue = item.company || item.companyName || item.employer || 'Company';
+    const normalized = {
+      ...item,
+      company: companyValue,
+      companyName: item.companyName || companyValue,
+      employer: item.employer || companyValue,
+      role: item.role || 'Java Backend Developer',
+      district: item.district || 'Pune',
+      sector: item.sector || 'IT services',
+      experience: item.experience || '0–2 years',
+      requiredSkills: required,
+      preferredSkills: preferred,
+      emergingSkills: emerging,
+      submittedAt: item.submittedAt || 'Updated recently',
+      signalType: item.signalType || 'company-submitted signal',
+      skills: [...required, ...preferred, ...emerging].filter(Boolean),
+    };
+    return normalized;
+  };
+
   const [companyName, setCompanyName] = useState('ABC Technologies');
   const [sector, setSector] = useState('IT services');
   const districtCompanyList = Array.isArray(employerSignals[district]) ? employerSignals[district] : [];
@@ -1145,7 +1228,8 @@ function Company({ district, setDistrict }) {
   const [contributions, setContributions] = useState(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(stored) ? stored : [];
+      const list = Array.isArray(stored) ? stored : [];
+      return list.map((item) => normalizeContribution(item));
     } catch {
       return [];
     }
@@ -1240,22 +1324,24 @@ function Company({ district, setDistrict }) {
   };
 
   const handleSubmit = () => {
-    const nextContribution = {
-      employer: companyName || company,
+    const nextContribution = normalizeContribution({
+      company: companyName || company,
       companyName: companyName || company,
+      employer: companyName || company,
       role,
       district,
       sector,
       experience,
-      requiredSkills,
-      preferredSkills,
-      emergingSkills,
+      requiredSkills: Array.isArray(requiredSkills) ? requiredSkills : [],
+      preferredSkills: Array.isArray(preferredSkills) ? preferredSkills : [],
+      emergingSkills: Array.isArray(emergingSkills) ? emergingSkills : [],
       submittedAt: 'Updated recently',
       signalType: 'company-submitted signal',
-    };
+    });
     const updated = [nextContribution, ...contributions].slice(0, 6);
-    setContributions(updated);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    const safeUpdated = updated.map((item) => normalizeContribution(item));
+    setContributions(safeUpdated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(safeUpdated));
     setSubmitted(true);
   };
 
@@ -1263,30 +1349,51 @@ function Company({ district, setDistrict }) {
     setFeedbackSubmitted(true);
   };
 
+  const activeSubmittedSignals = contributions.map((item) => normalizeContribution(item)).map(({ employer, role: signalRole, district: signalDistrict, skills, signalType }) => ({
+    employer,
+    role: signalRole,
+    district: signalDistrict,
+    skills: Array.isArray(skills) ? skills : [],
+    signalType,
+  }));
+
   const aggregatedSignals = useMemo(() => {
     const map = new Map();
-    const signals = getEmployerSignals(district, role, contributions.filter((item) => item.district === district));
+    const signals = getCombinedEmployerSignals(district, role, activeSubmittedSignals);
     for (const signal of signals) {
-      for (const skill of signal.skills) {
-        const label = skill.trim();
+      const skillList = Array.isArray(signal.skills) ? signal.skills : [];
+      for (const skill of skillList) {
+        const label = String(skill).trim();
         const key = normalizeSkill(label);
         if (!map.has(key)) map.set(key, { skill: label, employers: 0 });
         map.get(key).employers += 1;
       }
     }
     return [...map.values()].sort((a, b) => b.employers - a.employers).slice(0, 6);
-  }, [contributions, district, role]);
+  }, [activeSubmittedSignals, district, role]);
 
-  const summaryContributions = contributions.length ? contributions : [{ role, district, requiredSkills, preferredSkills, emergingSkills, employer: companyName || company, submittedAt: 'Updated recently' }];
+  const summaryContributions = contributions.length
+    ? contributions
+    : [{
+        role,
+        district,
+        requiredSkills: Array.isArray(requiredSkills) ? requiredSkills : [],
+        preferredSkills: Array.isArray(preferredSkills) ? preferredSkills : [],
+        emergingSkills: Array.isArray(emergingSkills) ? emergingSkills : [],
+        employer: companyName || company,
+        submittedAt: 'Updated recently',
+      }];
   const totalSubmitted = summaryContributions.length;
-  const liveSummary = submitted ? summaryContributions[0] : { role, district, required: requiredSkills.length, preferred: preferredSkills.length, emerging: emergingSkills.length, employer: companyName || company };
-  const activeSubmittedSignals = contributions.map((item) => ({
-    employer: item.companyName || item.employer,
-    role: item.role,
-    district: item.district,
-    skills: [...(item.requiredSkills || []), ...(item.preferredSkills || []), ...(item.emergingSkills || [])],
-    signalType: 'company-submitted signal',
-  }));
+  const liveSummary = submitted
+    ? summaryContributions[0]
+    : {
+        role,
+        district,
+        required: Array.isArray(requiredSkills) ? requiredSkills.length : 0,
+        preferred: Array.isArray(preferredSkills) ? preferredSkills.length : 0,
+        emerging: Array.isArray(emergingSkills) ? emergingSkills.length : 0,
+        employer: companyName || company,
+      };
 
   if (!hasRoleData) {
     return (
@@ -1524,7 +1631,7 @@ function Company({ district, setDistrict }) {
         <section className="card">
           <Head title="Industry Signals" text={`Representative employer signals for ${role} in ${district}`} />
           <div className="signal-list">
-            {getEmployerSignals(district, role, activeSubmittedSignals).slice(0, 6).map((entry) => (
+            {getCombinedEmployerSignals(district, role, activeSubmittedSignals).slice(0, 6).map((entry) => (
               <div key={`${entry.employer}-${entry.role}`} className="signal-item">
                 <div>
                   <b>{entry.employer}</b>
@@ -1603,9 +1710,9 @@ function Company({ district, setDistrict }) {
                 <b>{entry.role}</b>
                 <small>{entry.district}</small>
                 <p>{entry.submittedAt || 'Updated recently'}</p>
-                <span>Required skills: {entry.required}</span>
-                <span>Preferred: {entry.preferred}</span>
-                <span>Emerging: {entry.emerging}</span>
+                <span>Required skills: {(entry.requiredSkills || []).length}</span>
+                <span>Preferred: {(entry.preferredSkills || []).length}</span>
+                <span>Emerging: {(entry.emergingSkills || []).length}</span>
               </div>
             ))}
           </div>
