@@ -1129,9 +1129,9 @@ function Company({ district, setDistrict }) {
   const STORAGE_KEY = 'skillbridge-company-submissions';
   const [companyName, setCompanyName] = useState('ABC Technologies');
   const [sector, setSector] = useState('IT services');
-  const districtCompanyList = employerSignals[district] || [];
-  const roleOptions = districts[district]?.roles || [];
-  const initialRole = roleOptions[0] || 'Java Backend Developer';
+  const districtCompanyList = Array.isArray(employerSignals[district]) ? employerSignals[district] : [];
+  const roleOptions = Array.isArray(districts[district]?.roles) ? districts[district].roles : [];
+  const initialRole = roleOptions[0] || Object.keys(roleRequirements)[0] || 'Java Backend Developer';
   const [company, setCompany] = useState(districtCompanyList[0]?.employer || 'TechNova Solutions');
   const [role, setRole] = useState(initialRole);
   const [requiredSkills, setRequiredSkills] = useState(roleRequirements[initialRole] ? [...roleRequirements[initialRole]].slice(0, 4) : []);
@@ -1146,11 +1146,13 @@ function Company({ district, setDistrict }) {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
       return Array.isArray(stored) ? stored : [];
-    } catch (error) {
+    } catch {
       return [];
     }
   });
   const [evidenceSkill, setEvidenceSkill] = useState(null);
+
+  const hasRoleData = roleOptions.length > 0 || Object.keys(roleRequirements).length > 0;
 
   const skillOptions = useMemo(() => {
     const pool = [
@@ -1286,6 +1288,43 @@ function Company({ district, setDistrict }) {
     signalType: 'company-submitted signal',
   }));
 
+  if (!hasRoleData) {
+    return (
+      <Page
+        eyebrow="COMPANIES"
+        title="Industry Skill Requirements"
+        sub="Share current and emerging skill requirements to strengthen workforce planning."
+      >
+        <section className="card">
+          <Head title="Company dashboard" text="No district role data is available in the current prototype, so the page is rendered in a safe fallback state." />
+          <div className="company-form-grid">
+            <label>
+              Company
+              <select value={companyName} onChange={(event) => setCompanyName(event.target.value)}>
+                <option value="ABC Technologies">ABC Technologies</option>
+                <option value="TechNova Solutions">TechNova Solutions</option>
+              </select>
+            </label>
+            <label>
+              District
+              <select value={district} onChange={(event) => setDistrict(event.target.value)}>
+                {Object.keys(districts).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Role
+              <select value={initialRole}>
+                <option value={initialRole}>{initialRole}</option>
+              </select>
+            </label>
+          </div>
+        </section>
+      </Page>
+    );
+  }
+
   return (
     <Page
       eyebrow="COMPANIES"
@@ -1415,7 +1454,7 @@ function Company({ district, setDistrict }) {
           </div>
         </section>
 
-        <aside className="card role-preview-card">
+        <div className="card role-preview-card">
           <span className="eyebrow">Role requirement</span>
           <h3>{role}</h3>
           <p>{district}</p>
@@ -1442,7 +1481,7 @@ function Company({ district, setDistrict }) {
           </div>
 
           <div className="preview-note">Experience: {experience}</div>
-        </aside>
+        </div>
       </div>
 
       {submitted && (
@@ -1686,7 +1725,7 @@ export default function App() {
       <Government district={district} setDistrict={setDistrict} />
     ) : page === 'college' || page === 'curriculum' ? (
       <Curriculum district={district} setDistrict={setDistrict} />
-    ) : page === 'company' ? (
+    ) : page === 'company' || page === 'companies' ? (
       <Company district={district} setDistrict={setDistrict} />
     ) : page === 'dashboard' ? (
       <Dashboard district={district} setDistrict={setDistrict} go={setPage} />
@@ -1700,7 +1739,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <aside className={mobile ? 'open' : ''}>
+      <aside className={mobile ? 'sidebar open' : 'sidebar'}>
         <div className="brand">
           <i>
             <BarChart3 size={19} />

@@ -29,7 +29,7 @@ button, select { font: inherit; }
 button { cursor: pointer; }
 
 .app-shell { display: flex; min-height: 100vh; }
-aside {
+.sidebar {
   width: 255px;
   background: linear-gradient(180deg, #0f1b35 0%, #142a53 100%);
   color: #d7e4ff;
@@ -1210,7 +1210,7 @@ select:focus { box-shadow: 0 0 0 3px rgba(35,87,216,0.12); }
 }
 
 @media (max-width: 820px) {
-  aside { width: 220px; }
+  .sidebar { width: 220px; }
   .content-panel { margin-left: 220px; width: calc(100% - 220px); }
   main { padding: 30px 24px 52px; }
   .intelligence-card { grid-template-columns: 1fr 1fr; }
@@ -1218,12 +1218,12 @@ select:focus { box-shadow: 0 0 0 3px rgba(35,87,216,0.12); }
 }
 
 @media (max-width: 680px) {
-  aside {
+  .sidebar {
     width: 255px;
     transform: translateX(-100%);
     transition: 0.2s ease;
   }
-  aside.open { transform: translateX(0); }
+  .sidebar.open { transform: translateX(0); }
   .brand button {
     display: block;
     margin-left: auto;
