@@ -32,24 +32,44 @@ export const getDistrictMarketData=(district='Pune')=>({
   employerSignals: districts[district]?.employerSignals || [],
   signals: districts[district]?.signals || []
 })
-export const getEmployerSignals=(district='Pune',role=null)=>{
-  const districtSignals=employerSignals[district]||[]
+const roleFamilyMap={
+  'java backend developer':['java backend developer','backend developer','software engineer','java developer','backend engineer'],
+  'cloud engineer':['cloud engineer','devops engineer','cloud architect','site reliability engineer','cloud infrastructure engineer'],
+  'full stack developer':['full stack developer','software engineer','frontend developer','backend developer','web developer'],
+  'data analyst':['data analyst','business analyst','analytics engineer','data specialist','reporting analyst'],
+  'software engineer':['software engineer','full stack developer','backend developer','frontend developer','application engineer'],
+  'cybersecurity analyst':['cybersecurity analyst','security analyst','network security engineer','information security analyst'],
+  'industrial automation engineer':['industrial automation engineer','automation engineer','industrial engineer','controls engineer'],
+  'embedded systems engineer':['embedded systems engineer','embedded engineer','electronics engineer','controls engineer'],
+  'cad/cam engineer':['cad/cam engineer','design engineer','manufacturing engineer','mechanical design engineer'],
+  'automation engineer':['automation engineer','industrial automation engineer','industrial engineer','controls engineer'],
+  'ai/ml engineer':['ai/ml engineer','machine learning engineer','data scientist','analytics engineer'],
+  'data scientist':['data scientist','data analyst','ai/ml engineer','analytics engineer'],
+  'cloud architect':['cloud architect','cloud engineer','devops engineer','site reliability engineer']
+}
+
+const getRoleMatches=(role='')=>{
+  const normalized=normalizeSkill(role)
+  if(!normalized) return []
+  const family=roleFamilyMap[normalized]||[]
+  return Array.from(new Set([normalized, ...family].map(item=>normalizeSkill(item)).filter(Boolean)))
+}
+
+export const getEmployerSignals=(district='Pune',role=null,submittedSignals=[] )=>{
+  const districtSignals=[...(employerSignals[district]||[]), ...(submittedSignals||[]).filter(item=>normalizeSkill(item.district)===normalizeSkill(district))]
   if(!role) return districtSignals
+
   const normalizedRole=normalizeSkill(role)
-  const exactRoleSignals=districtSignals.filter(item=>normalizeSkill(item.role)===normalizedRole)
+  const matches=getRoleMatches(normalizedRole)
+  const exactRoleSignals=districtSignals.filter(item=>matches.includes(normalizeSkill(item.role)))
   if(exactRoleSignals.length) return exactRoleSignals
 
   const roleTokens=normalizedRole.split(/\s+/).filter(token=>token.length>2 && !['and','for','the'].includes(token))
-  return districtSignals.filter(item=>{
+  const fallback=districtSignals.filter(item=>{
     const entryRole=normalizeSkill(item.role)
-    if(!roleTokens.length) return true
-    const matchedToken=roleTokens.some(token=>entryRole.includes(token))
-    const familyMatch=(normalizedRole.includes('backend') && entryRole.includes('backend'))
-      || (normalizedRole.includes('engineer') && entryRole.includes('engineer'))
-      || (normalizedRole.includes('analyst') && entryRole.includes('analyst'))
-      || (normalizedRole.includes('developer') && entryRole.includes('developer'))
-    return matchedToken || familyMatch
+    return roleTokens.some(token=>entryRole.includes(token))
   })
+  return fallback.length ? fallback : districtSignals
 }
 export const calculateSkillDemand=(skill,empSignals=[] )=>{
   const normalizedSkill=normalizeSkill(skill)
@@ -57,14 +77,31 @@ export const calculateSkillDemand=(skill,empSignals=[] )=>{
   const count=empSignals.filter(item=>item.skills.some(entry=>normalizeSkill(entry)===normalizedSkill)).length
   return { skill:String(skill).trim(), total, count, frequency: total ? count/total : 0 }
 }
-export const getSkillEvidence=(district='Pune',role=null,skill='Spring Boot')=>{
-  const signals=getEmployerSignals(district,role)
+export const getSkillEvidence=(district='Pune',role=null,skill='Spring Boot',submittedSignals=[] )=>{
+  const signals=getEmployerSignals(district,role,submittedSignals)
   const targetSkill=normalizeSkill(skill)
   const relevant=signals.filter(item=>item.skills.some(entry=>normalizeSkill(entry)===targetSkill))
+  const roleSet=new Set(relevant.map(item=>String(item.role).trim()))
   const aggregate=Array.from(new Set(signals.flatMap(item=>item.skills))).map(itemSkill=>({
     skill:itemSkill,
     count:signals.filter(item=>item.skills.some(entry=>normalizeSkill(entry)===normalizeSkill(itemSkill))).length,
     total:signals.length || 1
   })).sort((a,b)=>b.count-a.count||a.skill.localeCompare(b.skill))
-  return { district, role, skill: String(skill).trim(), totalEmployers: signals.length, relevantEmployers: relevant, aggregate }
+  const representativeCount=relevant.filter(item=>item.signalType==='representative').length
+  const companyCount=relevant.filter(item=>item.signalType==='company-submitted signal').length
+  return {
+    district,
+    role,
+    skill: String(skill).trim(),
+    totalEmployers: signals.length,
+    totalRelevantEmployers: relevant.length,
+    relevantEmployers: relevant,
+    relatedRoles: [...roleSet],
+    aggregate,
+    sourceSummary: {
+      representative: representativeCount,
+      companySubmitted: companyCount,
+      total: relevant.length
+    }
+  }
 }

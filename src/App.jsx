@@ -33,7 +33,9 @@ import {
   calcGap,
   courses,
   districts,
+  employerSignals,
   gapClassification,
+  getEmployerSignals,
   getSkillEvidence,
   normalizeSkill,
   roleRequirements,
@@ -43,6 +45,7 @@ import {
 const nav = [
   ['government', 'Government', ShieldAlert],
   ['college', 'Colleges', BookOpen],
+  ['company', 'Companies', Target],
   ['dashboard', 'Overview', LayoutDashboard],
   ['intelligence', 'Skill Intelligence', BrainCircuit],
   ['student', 'Student Skill Gap', GraduationCap],
@@ -98,8 +101,8 @@ function Head({ title, text, action }) {
   );
 }
 
-function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', explanation, onClose }) {
-  const evidence = getSkillEvidence(district, role, skill);
+function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', explanation, onClose, submittedSignals = [] }) {
+  const evidence = getSkillEvidence(district, role, skill, submittedSignals);
   const signals = evidence.relevantEmployers;
   const aggregate = evidence.aggregate;
   const targetSkill = normalizeSkill(skill);
@@ -107,7 +110,7 @@ function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', expl
   const currentSkillInfo = aggregate.find((item) => normalizeSkill(item.skill) === targetSkill) || {
     skill,
     count: 0,
-    total: evidence.totalEmployers || 1,
+    total: evidence.totalRelevantEmployers || 1,
   };
   const priorityTone = priority.toLowerCase().includes('high') ? 'red' : priority.toLowerCase().includes('medium') ? 'amber' : 'blue';
 
@@ -139,18 +142,29 @@ function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', expl
           </div>
         </div>
 
+        <div className="evidence-source-summary">
+          <span>{evidence.sourceSummary.representative} representative employer signals</span>
+          <span>{evidence.sourceSummary.companySubmitted} company-submitted signal</span>
+          <strong>Total relevant signals: {evidence.totalRelevantEmployers}</strong>
+        </div>
+
         <div className="evidence-section">
           <span className="eyebrow">EMPLOYER DEMAND SIGNALS</span>
           {showLimitedState ? (
             <div className="evidence-empty">
-              <strong>Limited prototype evidence available for this role and market.</strong>
-              <p>Production deployment would use verified labour-market and employer data.</p>
+              <strong>Limited employer evidence available for this role and market.</strong>
+              <p>Additional employer signals can strengthen this recommendation.</p>
             </div>
           ) : (
             <div className="evidence-employers">
               {signals.map((entry) => (
-                <div key={`${entry.employer}-${entry.role}`} className="evidence-employer">
-                  <h4>{entry.employer}</h4>
+                <div key={`${entry.employer}-${entry.role}-${entry.signalType || 'representative'}`} className="evidence-employer">
+                  <div className="evidence-identity-row">
+                    <h4>{entry.employer}</h4>
+                    <Pill tone={entry.signalType === 'company-submitted signal' ? 'blue' : 'green'}>
+                      {entry.signalType === 'company-submitted signal' ? 'Company-submitted signal' : 'Representative employer signal'}
+                    </Pill>
+                  </div>
                   <p>{entry.role}</p>
                   <div className="evidence-skill-list">
                     {entry.skills.map((item) => (
@@ -171,8 +185,8 @@ function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', expl
         <div className="evidence-section">
           <span className="eyebrow">AGGREGATED SIGNAL</span>
           <div className="evidence-summary-row">
-            <strong>{currentSkillInfo.count} / {currentSkillInfo.total}</strong>
-            <span>representative employers</span>
+            <strong>{currentSkillInfo.count} / {Math.max(currentSkillInfo.total, evidence.totalRelevantEmployers || 1)}</strong>
+            <span>{evidence.totalRelevantEmployers === 1 ? 'relevant employer signal' : 'relevant employers'}</span>
           </div>
           <div className="aggregate-list">
             {aggregate.slice(0, 6).map((item) => (
@@ -186,7 +200,7 @@ function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', expl
 
         <div className="evidence-explanation">
           <span className="eyebrow">WHY THIS SKILL?</span>
-          <p>{explanation || `${skill} appears across representative employer signals in ${district}, reinforcing its value for the ${role} role.`}</p>
+          <p>{explanation || `${skill} appears across multiple relevant employer signals in ${district}, reinforcing its value for the ${role} role.`}</p>
         </div>
 
         <p className="evidence-disclaimer">
@@ -1111,6 +1125,493 @@ function Curriculum({ district, setDistrict }) {
   );
 }
 
+function Company({ district, setDistrict }) {
+  const STORAGE_KEY = 'skillbridge-company-submissions';
+  const [companyName, setCompanyName] = useState('ABC Technologies');
+  const [sector, setSector] = useState('IT services');
+  const districtCompanyList = employerSignals[district] || [];
+  const roleOptions = districts[district]?.roles || [];
+  const initialRole = roleOptions[0] || 'Java Backend Developer';
+  const [company, setCompany] = useState(districtCompanyList[0]?.employer || 'TechNova Solutions');
+  const [role, setRole] = useState(initialRole);
+  const [requiredSkills, setRequiredSkills] = useState(roleRequirements[initialRole] ? [...roleRequirements[initialRole]].slice(0, 4) : []);
+  const [preferredSkills, setPreferredSkills] = useState(roleRequirements[initialRole] ? [...roleRequirements[initialRole]].slice(4, 6) : []);
+  const [emergingSkills, setEmergingSkills] = useState([]);
+  const [experience, setExperience] = useState('0–2 years');
+  const [submitted, setSubmitted] = useState(false);
+  const [industryFeedback, setIndustryFeedback] = useState('Partially aligned');
+  const [feedbackGap, setFeedbackGap] = useState('');
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [contributions, setContributions] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      return Array.isArray(stored) ? stored : [];
+    } catch (error) {
+      return [];
+    }
+  });
+  const [evidenceSkill, setEvidenceSkill] = useState(null);
+
+  const skillOptions = useMemo(() => {
+    const pool = [
+      ...(roleRequirements[role] || []),
+      ...(getEmployerSignals(district, role).flatMap((entry) => entry.skills || [])),
+      ...(districts[district]?.skills || []),
+    ];
+    const seen = new Map();
+    for (const skill of pool) {
+      const normalized = normalizeSkill(skill);
+      if (!seen.has(normalized)) seen.set(normalized, skill);
+    }
+    return [...seen.values()];
+  }, [district, role]);
+
+  const syncRoleForDistrict = (nextDistrict) => {
+    const nextOptions = districts[nextDistrict]?.roles || [];
+    const nextRoleName = nextOptions[0] || 'Java Backend Developer';
+    setDistrict(nextDistrict);
+    setRole(nextRoleName);
+    const baseRequired = (roleRequirements[nextRoleName] || []).slice(0, 4);
+    const basePreferred = (roleRequirements[nextRoleName] || []).slice(4, 6);
+    const nextCompanies = employerSignals[nextDistrict] || [];
+    setCompany(nextCompanies[0]?.employer || 'TechNova Solutions');
+    setRequiredSkills(baseRequired);
+    setPreferredSkills(basePreferred);
+    const pool = (districts[nextDistrict]?.skills || []).filter(
+      (item) => !baseRequired.includes(item) && !basePreferred.includes(item),
+    );
+    setEmergingSkills(pool.slice(0, 2));
+  };
+
+  const handleRoleChange = (nextRole) => {
+    const baseRequired = (roleRequirements[nextRole] || []).slice(0, 4);
+    const basePreferred = (roleRequirements[nextRole] || []).slice(4, 6);
+    const pool = skillOptions.filter((item) => !baseRequired.includes(item) && !basePreferred.includes(item));
+    setRole(nextRole);
+    setRequiredSkills(baseRequired);
+    setPreferredSkills(basePreferred);
+    setEmergingSkills(pool.slice(0, 2));
+  };
+
+  const toggleSkill = (skill, group) => {
+    const key = normalizeSkill(skill);
+    const removeFromAll = (setter) => setter((current) => current.filter((item) => normalizeSkill(item) !== key));
+
+    if (group === 'required') {
+      setRequiredSkills((current) => {
+        const exists = current.some((item) => normalizeSkill(item) === key);
+        if (exists) return current.filter((item) => normalizeSkill(item) !== key);
+        removeFromAll(setPreferredSkills);
+        removeFromAll(setEmergingSkills);
+        return [...current, skill];
+      });
+      return;
+    }
+
+    if (group === 'preferred') {
+      setPreferredSkills((current) => {
+        const exists = current.some((item) => normalizeSkill(item) === key);
+        if (exists) return current.filter((item) => normalizeSkill(item) !== key);
+        removeFromAll(setRequiredSkills);
+        removeFromAll(setEmergingSkills);
+        return [...current, skill];
+      });
+      return;
+    }
+
+    setEmergingSkills((current) => {
+      const exists = current.some((item) => normalizeSkill(item) === key);
+      if (exists) return current.filter((item) => normalizeSkill(item) !== key);
+      removeFromAll(setRequiredSkills);
+      removeFromAll(setPreferredSkills);
+      return [...current, skill];
+    });
+  };
+
+  const resetToRoleDefaults = () => {
+    const baseRequired = (roleRequirements[role] || []).slice(0, 4);
+    const basePreferred = (roleRequirements[role] || []).slice(4, 6);
+    const pool = skillOptions.filter((item) => !baseRequired.includes(item) && !basePreferred.includes(item));
+    setRequiredSkills(baseRequired);
+    setPreferredSkills(basePreferred);
+    setEmergingSkills(pool.slice(0, 2));
+  };
+
+  const handleSubmit = () => {
+    const nextContribution = {
+      employer: companyName || company,
+      companyName: companyName || company,
+      role,
+      district,
+      sector,
+      experience,
+      requiredSkills,
+      preferredSkills,
+      emergingSkills,
+      submittedAt: 'Updated recently',
+      signalType: 'company-submitted signal',
+    };
+    const updated = [nextContribution, ...contributions].slice(0, 6);
+    setContributions(updated);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setSubmitted(true);
+  };
+
+  const handleFeedbackSubmit = () => {
+    setFeedbackSubmitted(true);
+  };
+
+  const aggregatedSignals = useMemo(() => {
+    const map = new Map();
+    const signals = getEmployerSignals(district, role, contributions.filter((item) => item.district === district));
+    for (const signal of signals) {
+      for (const skill of signal.skills) {
+        const label = skill.trim();
+        const key = normalizeSkill(label);
+        if (!map.has(key)) map.set(key, { skill: label, employers: 0 });
+        map.get(key).employers += 1;
+      }
+    }
+    return [...map.values()].sort((a, b) => b.employers - a.employers).slice(0, 6);
+  }, [contributions, district, role]);
+
+  const summaryContributions = contributions.length ? contributions : [{ role, district, requiredSkills, preferredSkills, emergingSkills, employer: companyName || company, submittedAt: 'Updated recently' }];
+  const totalSubmitted = summaryContributions.length;
+  const liveSummary = submitted ? summaryContributions[0] : { role, district, required: requiredSkills.length, preferred: preferredSkills.length, emerging: emergingSkills.length, employer: companyName || company };
+  const activeSubmittedSignals = contributions.map((item) => ({
+    employer: item.companyName || item.employer,
+    role: item.role,
+    district: item.district,
+    skills: [...(item.requiredSkills || []), ...(item.preferredSkills || []), ...(item.emergingSkills || [])],
+    signalType: 'company-submitted signal',
+  }));
+
+  return (
+    <Page
+      eyebrow="COMPANIES"
+      title="Industry Skill Requirements"
+      sub="Share current and emerging skill requirements to strengthen workforce planning."
+    >
+      <div className="notice">
+        <Target size={14} />
+        Prototype company contribution
+      </div>
+
+      <div className="kpis company-kpis">
+        <Kpi icon={Target} value={totalSubmitted} label="Roles submitted" />
+        <Kpi icon={Check} value={liveSummary.required} label="Required skills" />
+        <Kpi icon={TrendingUp} value={liveSummary.preferred} label="Preferred skills" />
+        <Kpi icon={Sparkles} value={liveSummary.emerging} label="Emerging skills" />
+      </div>
+
+      <div className="company-layout">
+        <section className="card company-form-card">
+          <div className="head">
+            <div>
+              <h3>Role requirement</h3>
+              <p>Representative industry contribution</p>
+            </div>
+          </div>
+
+          <div className="company-form-grid">
+            <label>
+              Company Name
+              <input
+                type="text"
+                value={companyName}
+                onChange={(event) => setCompanyName(event.target.value)}
+                placeholder="ABC Technologies"
+              />
+            </label>
+
+            <label>
+              District
+              <select value={district} onChange={(event) => syncRoleForDistrict(event.target.value)}>
+                {Object.keys(districts).map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Industry / Sector
+              <select value={sector} onChange={(event) => setSector(event.target.value)}>
+                {['IT services', 'Manufacturing technology', 'Logistics technology', 'FinTech', 'Public digital services', 'Digital services'].map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Role
+              <select value={role} onChange={(event) => handleRoleChange(event.target.value)}>
+                {roleOptions.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="full-span">
+              Experience Level
+              <select value={experience} onChange={(event) => setExperience(event.target.value)}>
+                {['0–2 years', '2–5 years', '5+ years'].map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="skill-section">
+            <span className="eyebrow">Required skills</span>
+            <div className="chip-grid">
+              {skillOptions.map((skill) => (
+                <button
+                  key={skill}
+                  type="button"
+                  className={requiredSkills.some((item) => normalizeSkill(item) === normalizeSkill(skill)) ? 'chip selected' : 'chip'}
+                  onClick={() => toggleSkill(skill, 'required')}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="skill-section">
+            <span className="eyebrow">Preferred skills</span>
+            <div className="chip-grid">
+              {skillOptions.map((skill) => (
+                <button
+                  key={`${skill}-preferred`}
+                  type="button"
+                  className={preferredSkills.some((item) => normalizeSkill(item) === normalizeSkill(skill)) ? 'chip selected secondary' : 'chip'}
+                  onClick={() => toggleSkill(skill, 'preferred')}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="skill-section">
+            <span className="eyebrow">Emerging / future skills</span>
+            <div className="chip-grid">
+              {skillOptions.map((skill) => (
+                <button
+                  key={`${skill}-emerging`}
+                  type="button"
+                  className={emergingSkills.some((item) => normalizeSkill(item) === normalizeSkill(skill)) ? 'chip selected tertiary' : 'chip'}
+                  onClick={() => toggleSkill(skill, 'emerging')}
+                >
+                  {skill}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="company-actions">
+            <button type="button" className="primary" onClick={handleSubmit}>Submit Skill Requirement</button>
+            <button type="button" className="secondary-button" onClick={resetToRoleDefaults}>Reset</button>
+          </div>
+        </section>
+
+        <aside className="card role-preview-card">
+          <span className="eyebrow">Role requirement</span>
+          <h3>{role}</h3>
+          <p>{district}</p>
+
+          <div className="preview-block">
+            <b>Required</b>
+            <div className="preview-list">
+              {requiredSkills.length ? requiredSkills.map((skill) => <span key={skill}>{skill}</span>) : <span>None selected</span>}
+            </div>
+          </div>
+
+          <div className="preview-block">
+            <b>Preferred</b>
+            <div className="preview-list">
+              {preferredSkills.length ? preferredSkills.map((skill) => <span key={skill}>{skill}</span>) : <span>None selected</span>}
+            </div>
+          </div>
+
+          <div className="preview-block">
+            <b>Emerging</b>
+            <div className="preview-list">
+              {emergingSkills.length ? emergingSkills.map((skill) => <span key={skill}>{skill}</span>) : <span>None selected</span>}
+            </div>
+          </div>
+
+          <div className="preview-note">Experience: {experience}</div>
+        </aside>
+      </div>
+
+      {submitted && (
+        <section className="card submission-card">
+          <div className="head">
+            <div>
+              <h3>Requirement added</h3>
+              <p>Your representative industry signal has been added to the SkillBridge prototype intelligence layer.</p>
+            </div>
+          </div>
+
+          <div className="summary-grid">
+            <div>
+              <span className="eyebrow">Industry Signal Summary</span>
+              <h4>{role}</h4>
+              <p>{district}</p>
+            </div>
+            <div className="metric-stack">
+              <span>Required Skills: <strong>{liveSummary.required}</strong></span>
+              <span>Preferred Skills: <strong>{liveSummary.preferred}</strong></span>
+              <span>Emerging Skills: <strong>{liveSummary.emerging}</strong></span>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="company-grid">
+        <section className="card">
+          <Head title="How your signal helps SkillBridge" text="From a company requirement to district-level workforce planning" />
+          <div className="flow-list">
+            {['Your requirement', 'Skill normalization', 'Market skill signal', 'Demand aggregation', 'Skill gap analysis', 'Curriculum recommendations', 'Student skill recommendations'].map((step, index) => (
+              <div key={step} className="flow-item">
+                <span>{index + 1}</span>
+                <b>{step}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <Head title="Industry Signals" text={`Representative employer signals for ${role} in ${district}`} />
+          <div className="signal-list">
+            {getEmployerSignals(district, role, activeSubmittedSignals).slice(0, 6).map((entry) => (
+              <div key={`${entry.employer}-${entry.role}`} className="signal-item">
+                <div>
+                  <b>{entry.employer}</b>
+                  <small>{entry.role}</small>
+                </div>
+                <div className="signal-skill-row">
+                  {(entry.skills || []).slice(0, 4).map((skill) => (
+                    <button key={`${entry.employer}-${skill}`} type="button" className="mini-skill" onClick={() => setEvidenceSkill(skill)}>
+                      {skill}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="card">
+        <Head title="Your market demand signal" text={`${district} demand context for ${role}`} />
+        <div className="demand-signal-grid">
+          <div className="demand-signal-section">
+            <span className="eyebrow">Required</span>
+            <div className="badge-list">
+              {requiredSkills.length ? requiredSkills.map((skill) => <span key={`req-${skill}`} className="badge primary-badge">{skill}</span>) : <span className="badge muted-badge">No required skills selected</span>}
+            </div>
+          </div>
+          <div className="demand-signal-section">
+            <span className="eyebrow">Preferred</span>
+            <div className="badge-list">
+              {preferredSkills.length ? preferredSkills.map((skill) => <span key={`pref-${skill}`} className="badge secondary-badge">{skill}</span>) : <span className="badge muted-badge">No preferred skills selected</span>}
+            </div>
+          </div>
+          <div className="demand-signal-section">
+            <span className="eyebrow">Emerging</span>
+            <div className="badge-list">
+              {emergingSkills.length ? emergingSkills.map((skill) => <span key={`em-${skill}`} className="badge tertiary-badge">{skill}</span>) : <span className="badge muted-badge">No emerging skills selected</span>}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="company-grid">
+        <section className="card">
+          <Head title="Industry Feedback" text="Prototype local state only" />
+          <div className="feedback-stack">
+            <label>
+              How closely does the current training ecosystem match your hiring requirements?
+              <select value={industryFeedback} onChange={(event) => setIndustryFeedback(event.target.value)}>
+                {['Well aligned', 'Partially aligned', 'Needs improvement'].map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              What is the biggest skill gap you observe?
+              <select value={feedbackGap} onChange={(event) => setFeedbackGap(event.target.value)}>
+                <option value="">Select a gap</option>
+                {(requiredSkills.length ? requiredSkills : skillOptions).slice(0, 6).map((skill) => (
+                  <option key={`gap-${skill}`} value={skill}>{skill}</option>
+                ))}
+              </select>
+            </label>
+
+            <button type="button" className="primary" onClick={handleFeedbackSubmit}>Submit Feedback</button>
+            {feedbackSubmitted && <p className="success-message">Feedback recorded in local prototype state.</p>}
+          </div>
+        </section>
+
+        <section className="card">
+          <Head title="Your contributions" text="Representative local contribution history" />
+          <div className="history-list">
+            {(summaryContributions || []).slice(0, 3).map((entry, index) => (
+              <div key={`${entry.role}-${index}`} className="history-item">
+                <b>{entry.role}</b>
+                <small>{entry.district}</small>
+                <p>{entry.submittedAt || 'Updated recently'}</p>
+                <span>Required skills: {entry.required}</span>
+                <span>Preferred: {entry.preferred}</span>
+                <span>Emerging: {entry.emerging}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="card info-card">
+        <span className="eyebrow">Production extension</span>
+        <p>In production, authorized employers could securely contribute verified role requirements and hiring signals through authenticated industry accounts.</p>
+      </section>
+
+      {aggregatedSignals.length > 0 && (
+        <section className="card">
+          <Head title="Aggregated skill signal" text="Current district and role signal density" />
+          <div className="aggregate-signal-list">
+            {aggregatedSignals.map((entry) => (
+              <div key={entry.skill} className="aggregate-signal-item">
+                <div>
+                  <b>{entry.skill}</b>
+                  <small>{entry.employers} employers</small>
+                </div>
+                <button type="button" className="text-button" onClick={() => setEvidenceSkill(entry.skill)}>
+                  View Evidence
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {evidenceSkill && (
+        <EvidencePanel
+          district={district}
+          role={role}
+          skill={evidenceSkill}
+          priority={requiredSkills.includes(evidenceSkill) ? 'HIGH PRIORITY' : 'MEDIUM PRIORITY'}
+          explanation={`${evidenceSkill} appears in representative employer demand signals for ${role} in ${district}. This is a prototype industry signal used to connect company input with the SkillBridge intelligence model.`}
+          submittedSignals={activeSubmittedSignals}
+          onClose={() => setEvidenceSkill(null)}
+        />
+      )}
+    </Page>
+  );
+}
+
 function About() {
   const pipeline = [
     'Industry demand',
@@ -1185,6 +1686,8 @@ export default function App() {
       <Government district={district} setDistrict={setDistrict} />
     ) : page === 'college' || page === 'curriculum' ? (
       <Curriculum district={district} setDistrict={setDistrict} />
+    ) : page === 'company' ? (
+      <Company district={district} setDistrict={setDistrict} />
     ) : page === 'dashboard' ? (
       <Dashboard district={district} setDistrict={setDistrict} go={setPage} />
     ) : page === 'intelligence' ? (
