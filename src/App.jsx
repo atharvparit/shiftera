@@ -42,10 +42,10 @@ import {
 
 const nav = [
   ['government', 'Government', ShieldAlert],
+  ['college', 'Colleges', BookOpen],
   ['dashboard', 'Overview', LayoutDashboard],
   ['intelligence', 'Skill Intelligence', BrainCircuit],
   ['student', 'Student Skill Gap', GraduationCap],
-  ['curriculum', 'Curriculum Intelligence', BookOpen],
   ['about', 'Methodology', ClipboardList],
 ];
 
@@ -880,8 +880,9 @@ function Student({ district }) {
 }
 
 function Curriculum({ district, setDistrict }) {
-  const [course, setCourse] = useState('Java Development');
+  const [course, setCourse] = useState('Java Backend Development');
   const [generated, setGenerated] = useState(false);
+  const [evidence, setEvidence] = useState(null);
 
   const selectedCourse = courses[course];
   const profile = districts[district];
@@ -905,30 +906,49 @@ function Curriculum({ district, setDistrict }) {
     [profile.signals, selectedCourse.core],
   );
 
-  const gaps = selectedCourse.core.filter((skill) => selectedCourse.coverage[skill] !== 'Strong');
+  const gapRows = marketSignals.map((signal) => {
+    const coverage = selectedCourse.coverage[signal.skill] || 'None';
+    const status = coverage === 'Strong' ? 'ALIGNED' : coverage === 'Partial' ? 'PARTIAL' : 'GAP';
+    return { ...signal, coverage, status };
+  });
+
+  const gaps = gapRows.filter((signal) => signal.coverage !== 'Strong');
   const modernize = selectedCourse.legacy.length;
   const analyzed = selectedCourse.core.length;
-  const coverageScore = Object.values(selectedCourse.coverage).reduce((total, value) => {
-    if (value === 'Strong') return total + 1;
-    if (value === 'Partial') return total + 0.5;
+  const coverageScore = gapRows.reduce((total, signal) => {
+    if (signal.coverage === 'Strong') return total + 1;
+    if (signal.coverage === 'Partial') return total + 0.5;
     return total;
   }, 0);
   const alignment = Math.round((coverageScore / analyzed) * 100);
 
   const recommendation = [...gaps]
-    .map((skill) => ({ skill, signal: marketSignals.find((signal) => signal.skill === skill) }))
-    .sort((a, b) => (b.signal?.jobDemand || 0) - (a.signal?.jobDemand || 0));
+    .map((signal) => ({ ...signal, signal }))
+    .sort((a, b) => (b.jobDemand || 0) - (a.jobDemand || 0));
+
+  const openEvidence = (skillName) => {
+    const signal = marketSignals.find((signal) => signal.skill === skillName) || { skill: skillName, demandGrowth: 0, jobDemand: 0 };
+    const priority = signal.jobDemand > 3500 ? 'HIGH PRIORITY' : signal.demandGrowth >= 10 ? 'MEDIUM PRIORITY' : 'EMERGING';
+    const explanation = `${skillName} appears across representative employer signals for ${selectedCourse.primaryRole || 'the selected role'} in ${district}, while the selected curriculum does not currently cover it.`;
+    setEvidence({ district, role: selectedCourse.primaryRole, skill: skillName, priority, explanation });
+  };
+
+  const chartData = gapRows.slice(0, 5).map((signal) => ({
+    skill: signal.skill,
+    market: signal.jobDemand,
+    curriculum: signal.coverage === 'Strong' ? 80 : signal.coverage === 'Partial' ? 45 : 15,
+  }));
 
   return (
     <Page
-      eyebrow="CURRICULUM INTELLIGENCE"
-      title="See where curriculum falls behind industry demand."
-      sub="SkillBridge compares the academic path with local market demand and identifies the highest-value updates."
+      eyebrow="COLLEGE"
+      title="College Curriculum Intelligence"
+      sub="See where your curriculum is falling behind industry demand."
     >
       <div className="course">
         <label>
-          Course
-          <select value={course} onChange={(event) => { setCourse(event.target.value); setGenerated(false); }}>
+          Course / Program
+          <select value={course} onChange={(event) => { setCourse(event.target.value); setGenerated(false); setEvidence(null); }}>
             {Object.keys(courses).map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -938,8 +958,8 @@ function Curriculum({ district, setDistrict }) {
         </label>
 
         <label>
-          Market
-          <Select value={district} onChange={(value) => { setDistrict(value); setGenerated(false); }} />
+          Market / District
+          <Select value={district} onChange={(value) => { setDistrict(value); setGenerated(false); setEvidence(null); }} />
         </label>
 
         <div className="alignment-box">
@@ -951,45 +971,75 @@ function Curriculum({ district, setDistrict }) {
         </div>
       </div>
 
+      <div className="notice">
+        <BookOpen size={14} />
+        Representative prototype market and curriculum data.
+      </div>
+
       <div className="kpis curriculum-kpis">
-        <Kpi icon={Target} value={analyzed} label="Skills analyzed" />
+        <Kpi icon={Target} value={analyzed} label="Market skills analyzed" />
         <Kpi icon={ShieldAlert} value={gaps.length} label="Curriculum gaps" warn />
         <Kpi icon={BookOpen} value={modernize} label="Modules to modernize" />
+        <Kpi icon={Gauge} value={`${alignment}%`} label="Industry alignment" />
+      </div>
+
+      <div className="college-chart-card card">
+        <Head title="Curriculum → Market Gap" text={`${district} market demand compared with ${course} coverage`} />
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={chartData}>
+            <CartesianGrid stroke="#e8edf5" vertical={false} />
+            <XAxis dataKey="skill" tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={(value) => `${value}`} />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="market" name="Market demand" fill="#2357d8" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="curriculum" name="Curriculum coverage" fill="#a9c6ff" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
 
       <section className="card">
-        <Head title="Curriculum → market gap" text={`${district} market signals mapped against ${course}`} />
-        <div className="table market-table">
-          <div className="row tablehead">
-            <span>Skill</span>
-            <span>Demand</span>
-            <span>Forecast</span>
-            <span>Coverage</span>
-            <span>Status</span>
-          </div>
-
-          {marketSignals.map((signal) => {
-            const coverage = selectedCourse.coverage[signal.skill];
-            const status = coverage === 'Strong' ? 'green' : coverage === 'Partial' ? 'amber' : 'red';
-
-            return (
-              <div className="row" key={signal.skill}>
-                <b>{signal.skill}</b>
-                <span>{signal.jobDemand.toLocaleString()}</span>
-                <span>
-                  {signal.futureDemand.toLocaleString()} <small>+{signal.demandGrowth}%</small>
-                </span>
-                <span>{coverage || 'None'}</span>
-                <Pill tone={status}>{coverage || 'Gap'}</Pill>
-              </div>
-            );
-          })}
+        <Head title="Curriculum → Market Gap" text="Curriculum coverage mapped against local market demand and recruiter signals" />
+        <div className="table-wrap">
+          <table className="gov-table">
+            <thead>
+              <tr>
+                <th>Skill</th>
+                <th>Market Demand</th>
+                <th>Forecast / Growth</th>
+                <th>Curriculum Coverage</th>
+                <th>Status</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gapRows.map((signal) => {
+                const coverage = signal.coverage || 'None';
+                const statusTone = coverage === 'Strong' ? 'green' : coverage === 'Partial' ? 'amber' : 'red';
+                const statusLabel = coverage === 'Strong' ? 'ALIGNED' : coverage === 'Partial' ? 'PARTIAL' : 'GAP';
+                return (
+                  <tr key={signal.skill}>
+                    <td>{signal.skill}</td>
+                    <td>{signal.jobDemand > 3500 ? 'High' : signal.jobDemand > 2000 ? 'Medium' : 'Low'}</td>
+                    <td>{signal.futureDemand.toLocaleString()} / +{signal.demandGrowth}%</td>
+                    <td>{coverage === 'None' ? 'Missing' : coverage}</td>
+                    <td><Pill tone={statusTone}>{statusLabel}</Pill></td>
+                    <td>
+                      <button type="button" className="text-button" onClick={() => openEvidence(signal.skill)}>
+                        View Evidence
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </section>
 
       {selectedCourse.legacy.length > 0 && (
         <section className="card legacy">
-          <Head title="Legacy module guidance" text="Modernization priorities for outdated training content" />
+          <Head title="Modules to review" text="Lower current market relevance and likely modernization priorities" />
           {selectedCourse.legacy.map((module) => (
             <div key={module.skill}>
               <b>{module.skill}</b>
@@ -999,22 +1049,63 @@ function Curriculum({ district, setDistrict }) {
         </section>
       )}
 
+      <div className="gov-two-col">
+        <section className="card recommendation-card">
+          <span className="eyebrow">SKILLBRIDGE CURRICULUM RECOMMENDATION</span>
+          <h3>For: {course}</h3>
+          <p>{district} Market</p>
+          <div className="recommendation-actions">
+            <h4>Recommended updates</h4>
+            <ul>
+              <li><strong>Add:</strong> {gaps.slice(0, 3).map((item) => item.skill).join(', ') || 'Core market-aligned modules'}</li>
+              <li><strong>Strengthen:</strong> {gapRows.filter((item) => item.coverage === 'Partial').slice(0, 2).map((item) => item.skill).join(', ') || 'Applied skills practice'}</li>
+              <li><strong>Review:</strong> {selectedCourse.legacy.slice(0, 2).map((item) => item.skill).join(', ') || 'Legacy modules'}</li>
+            </ul>
+          </div>
+        </section>
+
+        <section className="card">
+          <Head title="Why this matters" text="Evidence behind the curriculum recommendation" />
+          <div className="evidence-story">
+            <b>{gaps[0]?.skill || 'Spring Boot'}</b>
+            <p>
+              {gaps[0]?.skill || 'Spring Boot'} appears across representative employer signals in {district} for
+              {selectedCourse.primaryRole || 'the selected role'}, while the current curriculum coverage remains weak.
+            </p>
+            <button type="button" className="text-button" onClick={() => openEvidence(gaps[0]?.skill || 'Spring Boot')}>
+              View Evidence
+            </button>
+          </div>
+        </section>
+      </div>
+
       <button className="primary generate" onClick={() => setGenerated(true)}>
-        Generate curriculum update summary <ChevronRight size={17} />
+        Generate Curriculum Update <ChevronRight size={17} />
       </button>
 
       {generated && (
         <section className="card update-summary">
-          <Head title="Recommended update plan" text="Priority actions ranked against local market demand" />
+          <Head title="Curriculum Update Plan" text="Deterministic recommendation engine output" />
           <ol>
-            {recommendation.slice(0, 4).map((item) => (
+            {recommendation.slice(0, 4).map((item, index) => (
               <li key={item.skill}>
-                {item.skill} — {item.signal ? `${item.signal.futureDemand.toLocaleString()} projected demand` : 'Priority gap'}
+                <strong>Priority {index + 1}</strong> {item.skill} — {item.coverage === 'Strong' ? 'Reinforce existing coverage' : 'Add as a core module'}
               </li>
             ))}
           </ol>
-          <p>Update the curriculum to cover the highest-demand skills first and add applied projects to validate learner readiness.</p>
+          <p>Update the curriculum to address the highest-demand skills first, then strengthen applied practice and assessment in the modules most closely tied to the selected market.</p>
         </section>
+      )}
+
+      {evidence && (
+        <EvidencePanel
+          district={evidence.district}
+          role={evidence.role}
+          skill={evidence.skill}
+          priority={evidence.priority}
+          explanation={evidence.explanation}
+          onClose={() => setEvidence(null)}
+        />
       )}
     </Page>
   );
@@ -1092,14 +1183,14 @@ export default function App() {
   const content =
     page === 'government' ? (
       <Government district={district} setDistrict={setDistrict} />
+    ) : page === 'college' || page === 'curriculum' ? (
+      <Curriculum district={district} setDistrict={setDistrict} />
     ) : page === 'dashboard' ? (
       <Dashboard district={district} setDistrict={setDistrict} go={setPage} />
     ) : page === 'intelligence' ? (
       <Intelligence district={district} setDistrict={setDistrict} />
     ) : page === 'student' ? (
       <Student district={district} />
-    ) : page === 'curriculum' ? (
-      <Curriculum district={district} setDistrict={setDistrict} />
     ) : (
       <About />
     );
