@@ -34,12 +34,14 @@ import {
   courses,
   districts,
   gapClassification,
+  getSkillEvidence,
   normalizeSkill,
   roleRequirements,
   skills,
 } from './data/prototypeData';
 
 const nav = [
+  ['government', 'Government', ShieldAlert],
   ['dashboard', 'Overview', LayoutDashboard],
   ['intelligence', 'Skill Intelligence', BrainCircuit],
   ['student', 'Student Skill Gap', GraduationCap],
@@ -409,6 +411,249 @@ function Intelligence({ district, setDistrict }) {
           </p>
         </section>
       </div>
+    </Page>
+  );
+}
+
+function Government({ district, setDistrict }) {
+  const [evidence, setEvidence] = useState(null);
+  const profile = districts[district];
+  const sortedSignals = [...profile.signals].sort((a, b) => calcGap(b) - calcGap(a));
+  const highestGap = sortedSignals[0];
+  const fastestGrowth = [...profile.signals].sort((a, b) => b.demandGrowth - a.demandGrowth)[0];
+  const totalDemandSignals = profile.signals.reduce((sum, signal) => sum + signal.jobDemand, 0);
+  const districtComparison = Object.entries(districts)
+    .map(([name, item]) => {
+      const averageGap = Math.round(item.signals.reduce((sum, signal) => sum + calcGap(signal), 0) / item.signals.length);
+      const level = averageGap > 45 ? 'High' : averageGap >= 30 ? 'Moderate' : 'Low';
+      return { district: name, gap: averageGap, level };
+    })
+    .sort((a, b) => b.gap - a.gap);
+
+  const getPriorityLabel = (signal) => {
+    if (!signal) return 'HIGH';
+    if (signal.demandGrowth >= 15 || signal.skill === 'Cloud Computing') return 'HIGH';
+    return calcGap(signal) > 45 ? 'HIGH' : 'MEDIUM';
+  };
+
+  const getPriorityTone = (signal) => {
+    if (!signal) return 'amber';
+    if (calcGap(signal) > 45 || signal.demandGrowth >= 15) return 'red';
+    return 'amber';
+  };
+
+  const openEvidence = (signal) => {
+    const role = signal.roles?.[0] || 'Java Backend Developer';
+    setEvidence({
+      district,
+      role,
+      skill: signal.skill,
+      priority: getPriorityLabel(signal),
+      explanation: `${signal.skill} shows strong market demand combined with a local talent gap and limited curriculum coverage in ${district}.`,
+    });
+  };
+
+  const recommendationSkills = sortedSignals.slice(0, 3).map((signal) => signal.skill).join(', ');
+
+  return (
+    <Page
+      eyebrow="GOVERNMENT"
+      title="Government Skill Intelligence"
+      sub="Identify district-level skill gaps and prioritize workforce development."
+      action={<Select value={district} onChange={setDistrict} />}
+    >
+      <div className="notice">
+        <MapPin size={14} />
+        Prototype / Representative Data
+      </div>
+
+      <div className="kpis gov-kpis">
+        <Kpi icon={Database} value={totalDemandSignals.toLocaleString()} label="Market demand signals" />
+        <Kpi icon={Target} value={profile.signals.length.toString()} label="Priority skills" />
+        <Kpi icon={ShieldAlert} value={`${calcGap(highestGap)}%`} label={`Highest skill gap · ${highestGap.skill}`} warn />
+        <Kpi icon={TrendingUp} value={`+${fastestGrowth.demandGrowth}%`} label={`Fastest growing · ${fastestGrowth.skill}`} />
+      </div>
+
+      <div className="gov-lead-grid">
+        <section className="card">
+          <Head title="District Market Outlook" text="Representative demand signals by skill and forecast growth" />
+          <Chart data={profile.signals.slice(0, 5)} forecast />
+        </section>
+
+        <section className="card gov-side-panel">
+          <Head title="Decision flow" text="Market signals → demand → supply → skill gap → priority → action" />
+          <div className="decision-flow">
+            {['Market signals', 'Demand', 'Supply', 'Skill gap', 'Priority', 'Action'].map((step) => (
+              <span key={step} className="flow-pill">{step}</span>
+            ))}
+          </div>
+
+          <div className="gov-metrics-block">
+            <div>
+              <span className="eyebrow">Priority sectors</span>
+              <ul className="gov-list">
+                {profile.sectors.map((sector, index) => (
+                  <li key={sector}>
+                    <span>{index + 1}.</span>
+                    <strong>{sector}</strong>
+                    <Pill tone={index < 2 ? 'red' : 'amber'}>{index < 2 ? 'HIGH' : 'MEDIUM'}</Pill>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <span className="eyebrow">Emerging skills</span>
+              <ul className="gov-list compact">
+                {profile.signals.slice(0, 4).map((signal) => (
+                  <li key={signal.skill}>
+                    <strong>{signal.skill}</strong>
+                    <span>+{signal.demandGrowth}%</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="gov-two-col">
+        <section className="card">
+          <Head title="Priority Skills" text="Prototype priority factors based on demand, growth, supply gap and curriculum coverage" />
+          <div className="priority-list">
+            {sortedSignals.slice(0, 4).map((signal) => {
+              const priorityLabel = getPriorityLabel(signal);
+              return (
+                <div key={signal.skill} className="priority-item">
+                  <div className="priority-copy">
+                    <b>{signal.skill}</b>
+                    <p>
+                      {signal.skill} shows strong market demand combined with a local talent gap and limited curriculum
+                      coverage in {district}.
+                    </p>
+                  </div>
+                  <div className="priority-meta">
+                    <Pill tone={getPriorityTone(signal)}>{priorityLabel}</Pill>
+                    <button type="button" className="text-button" onClick={() => openEvidence(signal)}>
+                      View Evidence
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="prototype-factors">
+            <span className="eyebrow">Prototype priority factors</span>
+            <div className="factor-grid">
+              <div className="factor"><b>35%</b> Demand</div>
+              <div className="factor"><b>25%</b> Growth</div>
+              <div className="factor"><b>25%</b> Supply Gap</div>
+              <div className="factor"><b>15%</b> Curriculum Gap</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card recommendation-card">
+          <span className="eyebrow">SKILLBRIDGE RECOMMENDATION</span>
+          <h3>{district} Market</h3>
+          <p>
+            Prioritize backend development and data-oriented training programs, with emphasis on {recommendationSkills}.
+          </p>
+          <div className="recommendation-actions">
+            <h4>Recommended Actions</h4>
+            <ol>
+              <li>Expand training capacity</li>
+              <li>Modernize relevant curriculum</li>
+              <li>Prioritize high-gap skills</li>
+              <li>Monitor emerging skill demand</li>
+            </ol>
+          </div>
+        </section>
+      </div>
+
+      <section className="card">
+        <Head title="District Skill Gaps" text="Skill demand, supply and gap classification drawn from the district intelligence model" />
+        <div className="table-wrap">
+          <table className="gov-table">
+            <thead>
+              <tr>
+                <th>Skill</th>
+                <th>Demand</th>
+                <th>Supply</th>
+                <th>Gap</th>
+                <th>Gap %</th>
+                <th>Priority</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedSignals.slice(0, 6).map((signal) => (
+                <tr key={signal.skill}>
+                  <td>{signal.skill}</td>
+                  <td>{signal.jobDemand > 3500 ? 'High' : signal.jobDemand > 2200 ? 'Medium' : 'Low'}</td>
+                  <td>{signal.candidateSupply > 2200 ? 'High' : signal.candidateSupply > 1500 ? 'Medium' : 'Low'}</td>
+                  <td>{calcGap(signal) > 45 ? 'High' : calcGap(signal) >= 30 ? 'Moderate' : 'Low'}</td>
+                  <td>{calcGap(signal)}%</td>
+                  <td><Pill tone={getPriorityTone(signal)}>{getPriorityLabel(signal)}</Pill></td>
+                  <td>{calcGap(signal) > 45 ? 'Prioritize training' : 'Expand training'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="gov-two-col">
+        <section className="card">
+          <Head title="Training Priority" text="What the government and training ecosystem should do next" />
+          <div className="mini-table">
+            <div className="mini-row mini-head">
+              <span>Skill</span>
+              <span>Demand</span>
+              <span>Supply</span>
+              <span>Gap</span>
+              <span>Action</span>
+            </div>
+            {sortedSignals.slice(0, 4).map((signal) => (
+              <div key={`${signal.skill}-training`} className="mini-row">
+                <span>{signal.skill}</span>
+                <span>{signal.jobDemand > 3500 ? 'High' : 'Medium'}</span>
+                <span>{signal.candidateSupply > 2200 ? 'High' : 'Medium'}</span>
+                <span>{calcGap(signal)}%</span>
+                <span>{calcGap(signal) > 45 ? 'Expand training' : 'Increase seats'}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <Head title="District Comparison" text="Representative district-level intensity of workforce gaps" />
+          <div className="comparison-list">
+            {districtComparison.map((item) => (
+              <div key={item.district} className="comparison-row">
+                <span>{item.district}</span>
+                <strong>{item.level}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <p className="gov-disclaimer">
+        Representative prototype data — intended to demonstrate the SkillBridge workforce-intelligence workflow.
+      </p>
+
+      {evidence && (
+        <EvidencePanel
+          district={evidence.district}
+          role={evidence.role}
+          skill={evidence.skill}
+          priority={evidence.priority}
+          explanation={evidence.explanation}
+          onClose={() => setEvidence(null)}
+        />
+      )}
     </Page>
   );
 }
@@ -840,12 +1085,14 @@ function About() {
 }
 
 export default function App() {
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState('government');
   const [district, setDistrict] = useState('Pune');
   const [mobile, setMobile] = useState(false);
 
   const content =
-    page === 'dashboard' ? (
+    page === 'government' ? (
+      <Government district={district} setDistrict={setDistrict} />
+    ) : page === 'dashboard' ? (
       <Dashboard district={district} setDistrict={setDistrict} go={setPage} />
     ) : page === 'intelligence' ? (
       <Intelligence district={district} setDistrict={setDistrict} />
