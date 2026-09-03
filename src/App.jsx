@@ -1,22 +1,908 @@
-import { useMemo, useState } from 'react'
-import { BarChart3, BookOpen, BrainCircuit, Check, ChevronRight, ClipboardList, Cloud, Database, Gauge, GraduationCap, LayoutDashboard, MapPin, Menu, ShieldAlert, Sparkles, Target, TrendingUp, X } from 'lucide-react'
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { calcGap, courses, districts, gapClassification, roleRequirements, skills } from './data/prototypeData'
+﻿import { useMemo, useState } from 'react';
+import {
+  BarChart3,
+  BookOpen,
+  BrainCircuit,
+  Check,
+  ChevronRight,
+  ClipboardList,
+  Cloud,
+  Database,
+  Gauge,
+  GraduationCap,
+  LayoutDashboard,
+  MapPin,
+  Menu,
+  ShieldAlert,
+  Sparkles,
+  Target,
+  TrendingUp,
+  X,
+} from 'lucide-react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import {
+  calcGap,
+  courses,
+  districts,
+  gapClassification,
+  normalizeSkill,
+  roleRequirements,
+  skills,
+} from './data/prototypeData';
 
-const nav=[['dashboard','Overview',LayoutDashboard],['intelligence','Skill Intelligence',BrainCircuit],['student','Student Skill Gap',GraduationCap],['curriculum','Curriculum Intelligence',BookOpen],['about','Methodology',ClipboardList]]
-const tone=p=>p==='Critical'?'red':p==='High'?'amber':p==='Moderate'?'blue':'green'
-const Pill=({children,tone:t='blue'})=><span className={'pill '+t}>{children}</span>
-const Select=({value,onChange})=><select value={value} onChange={e=>onChange(e.target.value)}>{Object.keys(districts).map(x=><option key={x}>{x}</option>)}</select>
-function Page({eyebrow,title,sub,action,children}){return <main><header><div><span className="eyebrow">{eyebrow}</span><h1>{title}</h1><p>{sub}</p></div>{action&&<div>{action}</div>}</header>{children}</main>}
-function Head({title,text,action}){return <div className="head"><div><h3>{title}</h3><p>{text}</p></div>{action}</div>}
-function DemandTooltip({active,payload,label}){if(!active||!payload?.length)return null;let s=payload[0].payload;return <div className="demand-tooltip"><b>{label}</b><span>Current demand <strong>{s.jobDemand.toLocaleString()}</strong></span><span>Prototype forecast <strong>{s.futureDemand.toLocaleString()} <i>(+{s.demandGrowth}%)</i></strong></span><span>Talent supply <strong>{s.candidateSupply.toLocaleString()}</strong></span><span>Projected gap <strong>{calcGap(s)}%</strong></span></div>}
-function Chart({data,forecast=false}){return <ResponsiveContainer width="100%" height={270}><BarChart data={data}><CartesianGrid stroke="#e8edf5" vertical={false}/><XAxis dataKey="skill" tick={{fontSize:11}}/><YAxis tickFormatter={v=>v.toLocaleString()}/><Tooltip content={<DemandTooltip/>}/><Legend/><Bar dataKey="jobDemand" name="Current demand" fill="#2563d8" radius={[5,5,0,0]}/>{forecast&&<Bar dataKey="futureDemand" name="Prototype forecast" fill="#7fa8ed" radius={[5,5,0,0]}/>}<Bar dataKey="candidateSupply" name="Talent supply" fill="#c0cede" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>}
-function Dashboard({district,setDistrict,go}){let profile=districts[district],top=profile.signals.slice(0,4),highest=[...profile.signals].sort((a,b)=>calcGap(b)-calcGap(a))[0],fastest=[...profile.signals].sort((a,b)=>b.demandGrowth-a.demandGrowth)[0];return <Page eyebrow="OVERVIEW" title="Labour Market Intelligence" sub="Understand where Maharashtra's workforce is aligned — and where the gaps are." action={<Select value={district} onChange={setDistrict}/>}><div className="notice"><Sparkles size={14}/> Prototype / representative data — designed to demonstrate the ShiftEra workflow.</div><div className="kpis"><Kpi icon={Database} value={profile.jobs.toLocaleString()} label="Market demand signals"/><Kpi icon={Target} value={profile.signals.length} label="Priority skills tracked"/><Kpi icon={ShieldAlert} value={`${calcGap(highest)}%`} label={`Highest gap · ${highest.skill}`} warn/><Kpi icon={TrendingUp} value={`+${fastest.demandGrowth}%`} label={`Fastest-growing · ${fastest.skill}`}/></div><IntelligenceCard district={district} signal={highest} onView={()=>go('intelligence')}/><div className="grid two"><section className="card"><Head title="District demand outlook" text="Current demand → prototype forecast"/><Chart data={top} forecast/><p className="chart-insight"><b>{highest.skill}</b> shows the largest projected workforce gap in {district}: forecast demand is {highest.futureDemand.toLocaleString()} compared with talent supply of {highest.candidateSupply.toLocaleString()}.</p></section><section className="card"><Head title={`${district} priority skills`} text="Ranked by demand, growth and workforce gap"/>{[...profile.signals].sort((a,b)=>(b.jobDemand+b.demandGrowth*100+calcGap(b)*100)-(a.jobDemand+a.demandGrowth*100+calcGap(a)*100)).slice(0,4).map((x,i)=><div className="emerge" key={x.skill}><small>0{i+1}</small><b>{x.skill}</b><span><Pill tone={tone(gapClassification(x))}>{gapClassification(x)} GAP</Pill> +{x.demandGrowth}%</span></div>)}</section></div><section className="card"><Head title="District Skill Gaps" text="Where projected workforce demand is exceeding available talent. High priority = projected gap above 45%." action={<button className="link" onClick={()=>go('intelligence')}>View intelligence <ChevronRight size={16}/></button>}/><MarketTable signals={top}/></section></Page>}
-function Kpi({icon:Icon,value,label,warn}){return <div className="card kpi"><i className={warn?'warn':''}><Icon size={20}/></i><b>{value}</b><span>{label}</span><small>{warn?'Needs intervention':'Representative signal'}</small></div>}
-function IntelligenceCard({district,signal,onView}){let gap=calcGap(signal);return <><div className="intelligence-flow"><span>Market signals</span><i>→</i><span>Demand forecast</span><i>→</i><span>Talent supply</span><i>→</i><span>Skill gap</span><i>→</i><span>Priority</span><i>→</i><span>Action</span></div><section className="intelligence-card"><div><span className="eyebrow">SHIFTERA INTELLIGENCE</span><h2>{signal.skill} is the highest-priority workforce gap in {district}.</h2><p>Projected demand is growing faster than available talent, creating a {gap}% representative workforce gap.</p></div><div className="insight-metrics"><span><b>{signal.futureDemand.toLocaleString()}</b>Forecast demand</span><span><b>{signal.candidateSupply.toLocaleString()}</b>Talent supply</span><span><b>+{signal.demandGrowth}%</b>Growth</span><span><b>{gap}%</b>Skill gap</span></div><div className="insight-action"><b>Recommended action</b><p>Increase aligned training capacity and update relevant curriculum modules.</p><button className="primary" onClick={onView}>View Skill Intelligence <ChevronRight size={17}/></button></div></section></>}
-function MarketTable({signals,coverage={}}){return <div className="table market-table"><div className="row tablehead"><span>Skill</span><span>Current demand</span><span>Forecast</span><span>Supply / coverage</span><span>Status</span></div>{signals.map(x=>{let gap=calcGap(x),cover=coverage[x.skill],classification=gapClassification(x);return <div className="row" key={x.skill}><b>{x.skill}</b><span>{x.jobDemand.toLocaleString()}</span><span>{x.futureDemand.toLocaleString()} <small>+{x.demandGrowth}%</small></span><span>{cover||x.candidateSupply.toLocaleString()}</span><Pill tone={cover?(cover==='Strong'?'green':cover==='Partial'?'amber':'red'):tone(classification)}>{cover||`${gap}% · ${classification}`}</Pill></div>})}</div>}
-function Intelligence({district,setDistrict}){let profile=districts[district],signals=[...profile.signals].sort((a,b)=>calcGap(b)-calcGap(a));let score=Math.round(signals.reduce((n,x)=>n+calcGap(x),0)/signals.length);return <Page eyebrow="MARKET EXPLORER" title="Skill Intelligence" sub="Explore district demand, talent supply, prototype forecasts and explainable skill priorities." action={<Select value={district} onChange={setDistrict}/>}><div className="notice"><MapPin size={14}/> Representative market signals only. Production forecasting would use continuously updated labour-market data and ML models.</div><div className="grid intel"><section className="card map"><Head title="District opportunity map" text="Select a district to update every signal below"/><div className="mapshape">{Object.keys(districts).map((x,i)=><button onClick={()=>setDistrict(x)} className={x===district?'selected':''} key={x} style={{left:`${12+i%3*29}%`,top:`${15+Math.floor(i/3)*31}%`}}>{x.split(' ')[0]}</button>)}</div><p className="mapkey">● Selected district　○ Other representative market</p></section><section className="card insight"><Pill tone="red">{score}% average gap</Pill><Gauge size={37}/><h3>{district} District Insight</h3><p>{profile.insight}</p><div className="score"><i style={{width:score+'%'}}/></div><small>Sectors: {profile.sectors.join(' · ')}</small></section></div><div className="grid two"><section className="card"><Head title="Demand vs supply outlook" text="Current demand → 3-month prototype forecast → talent supply"/><Chart data={signals.slice(0,5)} forecast/></section><section className="card"><Head title="Explainable priority factors" text="Transparent prototype priority engine"/><div className="factor"><b>35%</b> Market demand</div><div className="factor"><b>25%</b> Demand growth</div><div className="factor"><b>25%</b> Supply-demand gap</div><div className="factor"><b>15%</b> Curriculum coverage</div><p className="muted">District and role relevance determine which market signals are eligible for a recommendation.</p></section></div><section className="card"><Head title="District skill priority ranking" text="Current demand, 3-month representative forecast, and talent supply"/><MarketTable signals={signals}/></section></Page>}
-function Student({district}){let[role,setRole]=useState('Java Backend Developer'),[location,setLocation]=useState(district),[chosen,setChosen]=useState(['Java','HTML','CSS','Python']),[done,setDone]=useState(false);let profile=districts[location],core=roleRequirements[role];let recommendations=useMemo(()=>{let market=profile.signals.filter(x=>x.roles.includes(role));let bySkill=new Map(market.map(x=>[x.skill,x]));let coreItems=core.map(skill=>({skill,source:'CORE ROLE SKILL',signal:bySkill.get(skill),score:bySkill.get(skill)?80+calcGap(bySkill.get(skill))/5:65}));let marketItems=market.filter(x=>!core.includes(x.skill)).map(signal=>({skill:signal.skill,source:signal.demandGrowth>=15?'EMERGING SKILL':'DISTRICT MARKET SKILL',signal,score:45+calcGap(signal)/3}));return [...coreItems,...marketItems].sort((a,b)=>b.score-a.score)},[core,profile.signals,role]);let missing=recommendations.filter(x=>!chosen.includes(x.skill));let matched=core.filter(x=>chosen.includes(x));let pct=Math.round(matched.length/core.length*100);let toggle=x=>setChosen(a=>a.includes(x)?a.filter(y=>y!==x):[...a,x]);return <Page eyebrow="PERSONALIZED PATHWAY" title="Find Your Skill Gap" sub="Role requirements + district market priorities + your current skills."><div className="student"><section className="card form"><label>Target role<select value={role} onChange={e=>{setRole(e.target.value);setDone(false)}}>{Object.keys(roleRequirements).map(x=><option key={x}>{x}</option>)}</select></label><label>Target market<select value={location} onChange={e=>{setLocation(e.target.value);setDone(false)}}>{Object.keys(districts).map(x=><option key={x}>{x}</option>)}</select></label><b>Current skills</b><div className="chips">{skills.map(x=><button className={chosen.includes(x)?'chosen':''} onClick={()=>toggle(x)} key={x}>{chosen.includes(x)&&<Check size={13}/>} {x}</button>)}</div><button className="primary" onClick={()=>setDone(true)}>Analyze My Skill Gap <ChevronRight size={17}/></button></section>{done?<section className="results"><div className="match"><b>{pct}%</b><span>core role match</span><small>{location} market context applied</small></div><div className="card"><Head title="Your priority skill gaps" text="Why each skill is recommended"/>{missing.slice(0,6).map(x=><div className="explain" key={x.skill}><div><b>{x.skill}</b><Pill tone={x.source==='CORE ROLE SKILL'?'blue':x.source==='EMERGING SKILL'?'amber':'red'}>{x.source}</Pill></div><p>• {x.source==='CORE ROLE SKILL'?`Required for ${role} roles.`:'High relevance in the selected district market.'}<br/>• {x.signal?`Demand grows ${x.signal.demandGrowth}% with a ${calcGap(x.signal)}% supply-demand gap.`:'Student currently does not list this skill.'}<br/>• Student currently does not list this skill.</p></div>)}</div><div className="card roadmap"><Head title="Recommended learning roadmap" text="Prototype recommendation engine — ranked by role and market relevance"/>{missing.slice(0,6).map((x,i)=><div key={x.skill}><small>0{i+1}</small><b>{x.skill}</b><span>{x.source}</span></div>)}</div></section>:<section className="empty"><Target size={42}/><h3>Your pathway starts here</h3><p>Choose a role, target market and current skills to see an explainable district-aware roadmap.</p></section>}</div></Page>}
-function Curriculum({district,setDistrict}){let[course,setCourse]=useState('Java Development'),[generated,setGenerated]=useState(false);let c=courses[course],profile=districts[district];let marketSignals=useMemo(()=>c.core.map(skill=>profile.signals.find(s=>s.skill===skill)||{skill,jobDemand:0,demandGrowth:0,candidateSupply:0,priority:'Moderate',futureDemand:0,sector:'Role baseline'}),[c,profile]);let gaps=c.core.filter(x=>c.coverage[x]!=='Strong'),modernize=c.legacy.length,analyzed=c.core.length,alignment=Math.round(Object.values(c.coverage).reduce((n,x)=>n+(x==='Strong'?1:x==='Partial'?.5:0),0)/analyzed*100);let recommendation=gaps.map(skill=>({skill,signal:marketSignals.find(x=>x.skill===skill)})).sort((a,b)=>(b.signal?.jobDemand||0)-(a.signal?.jobDemand||0));return <Page eyebrow="CURRICULUM INTELLIGENCE" title="See where curriculum is falling behind industry demand." sub="ShiftEra compares curriculum coverage with selected-market skill signals and identifies the highest-priority updates."><div className="course"><label>Course<select value={course} onChange={e=>{setCourse(e.target.value);setGenerated(false)}}>{Object.keys(courses).map(x=><option key={x}>{x}</option>)}</select></label><label>Market<Select value={district} onChange={x=>{setDistrict(x);setGenerated(false)}}/></label><div><b>{alignment}%</b><span>Industry Alignment<small>{alignment<60?'Needs modernization':'Partially aligned'}</small></span></div></div><div className="kpis curriculum-kpis"><Kpi icon={Target} value={analyzed} label="Market skills analyzed"/><Kpi icon={ShieldAlert} value={gaps.length} label="Curriculum gaps" warn/><Kpi icon={BookOpen} value={modernize} label="Modules to modernize"/></div><section className="card"><Head title="Curriculum → market gap" text={`${district} representative market signals matched to ${course}`}/><MarketTable signals={marketSignals} coverage={c.coverage}/></section>{c.legacy.length>0&&<section className="card legacy"><Head title="Legacy module guidance" text="Modernize with an outcome-focused transition"/>{c.legacy.map(x=><div key={x.skill}><b>{x.skill}</b><p>{x.text}</p></div>)}</section>}<section className="recommend curriculum-recs"><div><Sparkles/><h3>ShiftEra recommendation</h3><p>High-priority curriculum updates for this market.</p></div><article>{recommendation.map(x=><span key={x.skill}>Add / strengthen {x.skill} {x.signal?.jobDemand?`(${x.signal.demandGrowth}% growth)`:''}</span>)}</article></section><button className="primary generate" onClick={()=>setGenerated(true)}>Generate Curriculum Update <ChevronRight size={17}/></button>{generated&&<section className="card update-summary"><h3>Recommended curriculum changes</h3><ol>{recommendation.map(x=><li key={x.skill}>Add or strengthen {x.skill} — {x.signal?.jobDemand?`selected market signal shows ${x.signal.demandGrowth}% growth.`:'core role requirement.'}</li>)}{c.legacy.map(x=><li key={x.skill}>Modernize {x.skill}.</li>)}</ol><p>Prototype summary only; production versions would use continuously refreshed data and ML forecasting.</p></section>}</Page>}
-function About(){return <Page eyebrow="TRUST & TRANSPARENCY" title="How ShiftEra works" sub="A deterministic prototype today, designed for a scalable skill intelligence platform tomorrow."><div className="grid two"><section className="card"><h3>Prototype intelligence flow</h3>{['Local representative signals','Skill normalization','Demand and supply analysis','Prototype forecast fields','Explainable priority engine','Recommendations'].map((x,i)=><p className="item" key={x}><i>{i+1}</i>{x}</p>)}</section><section className="card"><h3>Future production pipeline</h3>{['Labour market data','Skill extraction / NLP','Demand analysis','ML / time-series forecast','Supply analysis','Supply-demand gap','Explainable recommendations'].map((x,i)=><p className="item" key={x}><i>{i+1}</i>{x}</p>)}</section></div><section className="card tech"><div><h3>Current prototype</h3><p>React · JavaScript · Local structured data · Rule-based recommendation engine · Recharts</p></div><div><h3>Future production architecture</h3><p>Spring Boot · PostgreSQL · Python · Pandas · scikit-learn · NLP · ML forecasting · LLM explanation layer</p></div></section><p className="disclaimer">All figures in ShiftEra are prototype / representative data. This demo is not an official Maharashtra government statistical release.</p></Page>}
-export default function App(){let[page,setPage]=useState('dashboard'),[district,setDistrict]=useState('Pune'),[mobile,setMobile]=useState(false);let content=page==='dashboard'?<Dashboard district={district} setDistrict={setDistrict} go={setPage}/>:page==='intelligence'?<Intelligence district={district} setDistrict={setDistrict}/>:page==='student'?<Student district={district}/>:page==='curriculum'?<Curriculum district={district} setDistrict={setDistrict}/>:<About/>;return <div className="app"><aside className={mobile?'open':''}><div className="brand"><i><BarChart3 size={19}/></i><div>ShiftEra<small>WORKFORCE INTELLIGENCE</small></div><button onClick={()=>setMobile(false)}><X/></button></div><nav>{nav.map(([id,label,Icon])=><button className={page===id?'active':''} onClick={()=>{setPage(id);setMobile(false)}} key={id}><Icon size={18}/>{label}</button>)}</nav><footer><Cloud size={17}/> Prototype workspace<small>v0.2 · SIH 2026</small></footer></aside><div className="content"><button className="menu" onClick={()=>setMobile(true)}><Menu/></button>{content}</div></div>}
+const nav = [
+  ['dashboard', 'Overview', LayoutDashboard],
+  ['intelligence', 'Skill Intelligence', BrainCircuit],
+  ['student', 'Student Skill Gap', GraduationCap],
+  ['curriculum', 'Curriculum Intelligence', BookOpen],
+  ['about', 'Methodology', ClipboardList],
+];
+
+const tone = (priority) => {
+  if (priority === 'Critical') return 'red';
+  if (priority === 'High') return 'amber';
+  if (priority === 'Moderate') return 'blue';
+  return 'green';
+};
+
+const Pill = ({ children, tone: accent = 'blue' }) => (
+  <span className={'pill ' + accent}>{children}</span>
+);
+
+const Select = ({ value, onChange }) => (
+  <select value={value} onChange={(event) => onChange(event.target.value)}>
+    {Object.keys(districts).map((district) => (
+      <option key={district} value={district}>
+        {district}
+      </option>
+    ))}
+  </select>
+);
+
+function Page({ eyebrow, title, sub, action, children }) {
+  return (
+    <main>
+      <header>
+        <div>
+          <span className="eyebrow">{eyebrow}</span>
+          <h1>{title}</h1>
+          <p>{sub}</p>
+        </div>
+        {action && <div>{action}</div>}
+      </header>
+      {children}
+    </main>
+  );
+}
+
+function Head({ title, text, action }) {
+  return (
+    <div className="head">
+      <div>
+        <h3>{title}</h3>
+        <p>{text}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function EvidencePanel({ district, role, skill, priority = 'HIGH PRIORITY', explanation, onClose }) {
+  const evidence = getSkillEvidence(district, role, skill);
+  const signals = evidence.relevantEmployers;
+  const aggregate = evidence.aggregate;
+  const targetSkill = normalizeSkill(skill);
+  const showLimitedState = !signals.length;
+  const currentSkillInfo = aggregate.find((item) => normalizeSkill(item.skill) === targetSkill) || {
+    skill,
+    count: 0,
+    total: evidence.totalEmployers || 1,
+  };
+  const priorityTone = priority.toLowerCase().includes('high') ? 'red' : priority.toLowerCase().includes('medium') ? 'amber' : 'blue';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="evidence-panel" onClick={(event) => event.stopPropagation()}>
+        <div className="evidence-header">
+          <div>
+            <span className="eyebrow">SKILL EVIDENCE</span>
+            <h3>{skill}</h3>
+          </div>
+          <button type="button" className="close-button" onClick={onClose} aria-label="Close evidence panel">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="evidence-meta">
+          <Pill tone={priorityTone}>{priority}</Pill>
+        </div>
+
+        <div className="evidence-grid">
+          <div className="evidence-stat">
+            <span>Market</span>
+            <strong>{district}</strong>
+          </div>
+          <div className="evidence-stat">
+            <span>Target role</span>
+            <strong>{role}</strong>
+          </div>
+        </div>
+
+        <div className="evidence-section">
+          <span className="eyebrow">EMPLOYER DEMAND SIGNALS</span>
+          {showLimitedState ? (
+            <div className="evidence-empty">
+              <strong>Limited prototype evidence available for this role and market.</strong>
+              <p>Production deployment would use verified labour-market and employer data.</p>
+            </div>
+          ) : (
+            <div className="evidence-employers">
+              {signals.map((entry) => (
+                <div key={`${entry.employer}-${entry.role}`} className="evidence-employer">
+                  <h4>{entry.employer}</h4>
+                  <p>{entry.role}</p>
+                  <div className="evidence-skill-list">
+                    {entry.skills.map((item) => (
+                      <span
+                        key={`${entry.employer}-${item}`}
+                        className={normalizeSkill(item) === targetSkill ? 'active' : ''}
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="evidence-section">
+          <span className="eyebrow">AGGREGATED SIGNAL</span>
+          <div className="evidence-summary-row">
+            <strong>{currentSkillInfo.count} / {currentSkillInfo.total}</strong>
+            <span>representative employers</span>
+          </div>
+          <div className="aggregate-list">
+            {aggregate.slice(0, 6).map((item) => (
+              <div key={item.skill} className="aggregate-item">
+                <span>{item.skill}</span>
+                <strong>{item.count} / {item.total}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="evidence-explanation">
+          <span className="eyebrow">WHY THIS SKILL?</span>
+          <p>{explanation || `${skill} appears across representative employer signals in ${district}, reinforcing its value for the ${role} role.`}</p>
+        </div>
+
+        <p className="evidence-disclaimer">
+          Prototype employer signals. Employer names and demand values are representative data for demonstrating the
+          SkillBridge intelligence workflow.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Kpi({ icon: Icon, value, label, warn = false }) {
+  return (
+    <div className="card kpi">
+      <i className={warn ? 'warn' : ''}>
+        <Icon size={20} />
+      </i>
+      <b>{value}</b>
+      <span>{label}</span>
+      <small>{warn ? 'Needs intervention' : 'Representative signal'}</small>
+    </div>
+  );
+}
+
+function DemandTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+
+  const signal = payload[0].payload;
+
+  return (
+    <div className="demand-tooltip">
+      <b>{label}</b>
+      <span>
+        Current demand <strong>{signal.jobDemand.toLocaleString()}</strong>
+      </span>
+      <span>
+        Forecast <strong>{signal.futureDemand.toLocaleString()} (+{signal.demandGrowth}%)</strong>
+      </span>
+      <span>
+        Talent supply <strong>{signal.candidateSupply.toLocaleString()}</strong>
+      </span>
+      <span>
+        Projected gap <strong>{calcGap(signal)}%</strong>
+      </span>
+    </div>
+  );
+}
+
+function Chart({ data, forecast = false }) {
+  return (
+    <ResponsiveContainer width="100%" height={270}>
+      <BarChart data={data}>
+        <CartesianGrid stroke="#e8edf5" vertical={false} />
+        <XAxis dataKey="skill" tick={{ fontSize: 11 }} />
+        <YAxis tickFormatter={(value) => value.toLocaleString()} />
+        <Tooltip content={<DemandTooltip />} />
+        <Legend />
+        <Bar dataKey="jobDemand" name="Current demand" fill="#2563d8" radius={[6, 6, 0, 0]} />
+        {forecast && (
+          <Bar dataKey="futureDemand" name="Forecast demand" fill="#7fa8ed" radius={[6, 6, 0, 0]} />
+        )}
+        <Bar dataKey="candidateSupply" name="Talent supply" fill="#c0cede" radius={[6, 6, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function Dashboard({ district, setDistrict, go }) {
+  const profile = districts[district];
+  const top = profile.signals.slice(0, 4);
+  const highest = [...profile.signals].sort((a, b) => calcGap(b) - calcGap(a))[0];
+  const fastest = [...profile.signals].sort((a, b) => b.demandGrowth - a.demandGrowth)[0];
+
+  return (
+    <Page
+      eyebrow="OVERVIEW"
+      title="Workforce intelligence for demand-aware skilling"
+      sub="SkillBridge aligns industry demand, student readiness, and curriculum reform across districts."
+      action={<Select value={district} onChange={setDistrict} />}
+    >
+      <div className="notice">
+        <Sparkles size={14} />
+        SkillBridge prototype for Smart India Hackathon 2026 — problem statement 26134.
+      </div>
+
+      <div className="kpis">
+        <Kpi icon={Database} value={profile.jobs.toLocaleString()} label="Demand signals tracked" />
+        <Kpi icon={Target} value={profile.signals.length} label="Priority skills monitored" />
+        <Kpi icon={ShieldAlert} value={`${calcGap(highest)}%`} label={`Highest gap · ${highest.skill}`} warn />
+        <Kpi icon={TrendingUp} value={`+${fastest.demandGrowth}%`} label={`Fastest growth · ${fastest.skill}`} />
+      </div>
+
+      <section className="intelligence-card">
+        <div>
+          <span className="eyebrow">SKILLBRIDGE INTELLIGENCE</span>
+          <h2>{highest.skill} is the most urgent market gap in {district}.</h2>
+          <p>
+            Forecast demand is rising faster than talent supply, creating a {calcGap(highest)}% workforce gap
+            that requires action across curriculum, hiring, and skilling pathways.
+          </p>
+        </div>
+        <div className="insight-metrics">
+          <span>
+            <b>{highest.futureDemand.toLocaleString()}</b>Forecast demand
+          </span>
+          <span>
+            <b>{highest.candidateSupply.toLocaleString()}</b>Talent supply
+          </span>
+          <span>
+            <b>+{highest.demandGrowth}%</b>Growth rate
+          </span>
+          <span>
+            <b>{calcGap(highest)}%</b>Skill gap
+          </span>
+        </div>
+        <div className="insight-action">
+          <b>Recommended action</b>
+          <p>Expand training capacity and refresh the corresponding curriculum modules.</p>
+          <button className="primary" onClick={() => go('intelligence')}>
+            View Skill Intelligence <ChevronRight size={17} />
+          </button>
+        </div>
+      </section>
+
+      <div className="grid two">
+        <section className="card">
+          <Head title="District demand outlook" text="Current demand → forecast demand → talent supply" />
+          <Chart data={top} forecast />
+          <p className="chart-insight">
+            <b>{highest.skill}</b> currently shows the sharpest mismatch between demand and available talent in{' '}
+            {district}.
+          </p>
+        </section>
+
+        <section className="card">
+          <Head title={`${district} priority skills`} text="Ranked by demand, growth and supply gap" />
+          {[...profile.signals]
+            .sort(
+              (a, b) =>
+                b.jobDemand + b.demandGrowth * 100 + calcGap(b) * 100 -
+                (a.jobDemand + a.demandGrowth * 100 + calcGap(a) * 100),
+            )
+            .slice(0, 4)
+            .map((signal, index) => (
+              <div className="emerge" key={signal.skill}>
+                <small>0{index + 1}</small>
+                <b>{signal.skill}</b>
+                <span>
+                  <Pill tone={tone(gapClassification(signal))}>{gapClassification(signal)} gap</Pill>
+                  +{signal.demandGrowth}%
+                </span>
+              </div>
+            ))}
+        </section>
+      </div>
+    </Page>
+  );
+}
+
+function Intelligence({ district, setDistrict }) {
+  const profile = districts[district];
+  const signals = [...profile.signals].sort((a, b) => calcGap(b) - calcGap(a));
+  const averageGap = Math.round(signals.reduce((sum, item) => sum + calcGap(item), 0) / signals.length);
+
+  return (
+    <Page
+      eyebrow="MARKET EXPLORER"
+      title="Skill Intelligence"
+      sub="Explore district demand, talent supply, growth rates, and the gap behind each critical skill."
+      action={<Select value={district} onChange={setDistrict} />}
+    >
+      <div className="notice">
+        <MapPin size={14} />
+        Representative market signals are used to demonstrate the SkillBridge decision model.
+      </div>
+
+      <div className="grid intel">
+        <section className="card map-card">
+          <Head title="District opportunity map" text="Select a district to refresh the intelligence model" />
+          <div className="mapshape">
+            {Object.keys(districts).map((item, index) => (
+              <button
+                key={item}
+                type="button"
+                className={item === district ? 'selected' : ''}
+                onClick={() => setDistrict(item)}
+                style={{ left: `${12 + (index % 3) * 29}%`, top: `${15 + Math.floor(index / 3) * 31}%` }}
+              >
+                {item.split(' ')[0]}
+              </button>
+            ))}
+          </div>
+          <p className="mapkey">● Selected district　○ Other representative cluster</p>
+        </section>
+
+        <section className="card insight-card">
+          <Pill tone="red">{averageGap}% average gap</Pill>
+          <Gauge size={36} />
+          <h3>{district} District Insight</h3>
+          <p>{profile.insight}</p>
+          <div className="score">
+            <i style={{ width: `${averageGap}%` }} />
+          </div>
+          <small>Sectors: {profile.sectors.join(' · ')}</small>
+        </section>
+      </div>
+
+      <div className="grid two">
+        <section className="card">
+          <Head title="Demand vs supply outlook" text="Current demand → forecast demand → workforce supply" />
+          <Chart data={signals.slice(0, 5)} forecast />
+        </section>
+
+        <section className="card">
+          <Head title="Explainable priority factors" text="Transparent scoring for the market signal engine" />
+          <div className="factor"><b>35%</b> Market demand</div>
+          <div className="factor"><b>25%</b> Growth momentum</div>
+          <div className="factor"><b>25%</b> Supply-demand gap</div>
+          <div className="factor"><b>15%</b> Curriculum coverage</div>
+          <p className="muted">
+            District and role relevance determine which signals rise to the top of the SkillBridge priority stack.
+          </p>
+        </section>
+      </div>
+    </Page>
+  );
+}
+
+function Student({ district }) {
+  const [role, setRole] = useState('Java Backend Developer');
+  const [location, setLocation] = useState(district);
+  const [chosen, setChosen] = useState(['Java', 'HTML', 'CSS', 'Python']);
+  const [done, setDone] = useState(false);
+  const [evidence, setEvidence] = useState(null);
+
+  const profile = districts[location];
+  const core = roleRequirements[role];
+
+  const recommendations = useMemo(() => {
+    const market = profile.signals.filter((signal) => signal.roles.includes(role));
+    const bySkill = new Map(market.map((signal) => [signal.skill, signal]));
+
+    const coreItems = core.map((skill) => ({
+      skill,
+      source: 'CORE ROLE SKILL',
+      signal: bySkill.get(skill),
+      score: bySkill.get(skill) ? 80 + calcGap(bySkill.get(skill)) / 5 : 65,
+    }));
+
+    const marketItems = market
+      .filter((signal) => !core.includes(signal.skill))
+      .map((signal) => ({
+        skill: signal.skill,
+        source: signal.demandGrowth >= 15 ? 'EMERGING SKILL' : 'DISTRICT MARKET SKILL',
+        signal,
+        score: 45 + calcGap(signal) / 3,
+      }));
+
+    return [...coreItems, ...marketItems].sort((a, b) => b.score - a.score);
+  }, [core, profile.signals, role]);
+
+  const missing = recommendations.filter((item) => !chosen.includes(item.skill));
+  const matched = core.filter((skill) => chosen.includes(skill));
+  const completion = Math.round((matched.length / core.length) * 100);
+  const strengths = chosen.filter((skill) => core.includes(skill));
+
+  const getPriorityMeta = (item) => {
+    if (!item.signal) return { label: 'HIGH PRIORITY', tone: 'amber' };
+    if (item.source === 'EMERGING SKILL' || item.signal.demandGrowth >= 15) return { label: 'EMERGING', tone: 'blue' };
+    if (calcGap(item.signal) >= 35) return { label: 'HIGH PRIORITY', tone: 'red' };
+    return { label: 'MEDIUM PRIORITY', tone: 'amber' };
+  };
+
+  const getExplanation = (item) => {
+    if (!item.signal) return 'Frequently requested for the selected role and local market.';
+    if (item.source === 'EMERGING SKILL' || item.signal.demandGrowth >= 15) {
+      return 'Emerging demand signal with strong local momentum and a clear market fit opportunity.';
+    }
+    if (calcGap(item.signal) >= 30) {
+      return 'Strong representative employer signal + curriculum gap + local supply gap.';
+    }
+    return 'Common supporting skill across relevant employer signals for the selected market.';
+  };
+
+  const openEvidence = (item) => {
+    const priorityMeta = getPriorityMeta(item);
+    setEvidence({
+      district: location,
+      role,
+      skill: item.skill,
+      priority: priorityMeta.label,
+      explanation: getExplanation(item),
+    });
+  };
+
+  const toggleSkill = (skill) => {
+    setChosen((current) =>
+      current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill],
+    );
+  };
+
+  return (
+    <Page
+      eyebrow="PERSONALIZED PATHWAY"
+      title="Find your skill gap"
+      sub="Match role ambitions with local market priorities and identify the shortest path to readiness."
+    >
+      <div className="student">
+        <section className="card form-card">
+          <label>
+            Target role
+            <select value={role} onChange={(event) => { setRole(event.target.value); setDone(false); setEvidence(null); }}>
+              {Object.keys(roleRequirements).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Target market
+            <select value={location} onChange={(event) => { setLocation(event.target.value); setDone(false); setEvidence(null); }}>
+              {Object.keys(districts).map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <b>Current skills</b>
+          <div className="chips">
+            {skills.map((skill) => (
+              <button
+                key={skill}
+                type="button"
+                className={chosen.includes(skill) ? 'chosen' : ''}
+                onClick={() => toggleSkill(skill)}
+              >
+                {chosen.includes(skill) && <Check size={13} />}
+                {skill}
+              </button>
+            ))}
+          </div>
+
+          <button className="primary" onClick={() => setDone(true)}>
+            Analyze my skill gap <ChevronRight size={17} />
+          </button>
+          <p className="prototype-note">Representative prototype data</p>
+        </section>
+
+        {done && (
+          <section className="card result-card">
+            <div className="result-head">
+              <span className="eyebrow">READINESS SCORE</span>
+              <h3>{completion}% match for {role}</h3>
+            </div>
+
+            <div className="score-bar">
+              <i style={{ width: `${completion}%` }} />
+            </div>
+
+            <div className="analysis-grid">
+              <div className="analysis-card">
+                <span className="eyebrow">YOUR MARKET FIT</span>
+                <h4>{role}</h4>
+                <p>{location} Market</p>
+                <div className="market-fit-row">
+                  <strong>{completion}%</strong>
+                  <span>Market Match</span>
+                </div>
+              </div>
+
+              <div className="analysis-card">
+                <span className="eyebrow">YOUR CURRENT STRENGTHS</span>
+                <div className="strength-list">
+                  {strengths.length ? strengths.map((skill) => (
+                    <span key={skill} className="strength-item">
+                      ✓ {skill}
+                    </span>
+                  )) : <span className="strength-item">Add current skills to map readiness.</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="recommend-block">
+              <span className="eyebrow">PRIORITY SKILL GAPS</span>
+              <div className="recommend">
+                {missing.slice(0, 5).map((item) => {
+                  const priorityMeta = getPriorityMeta(item);
+                  return (
+                    <div key={item.skill} className="recommend-item">
+                      <div className="recommend-copy">
+                        <b>{item.skill}</b>
+                        <small>{item.source}</small>
+                        <p>{getExplanation(item)}</p>
+                      </div>
+                      <div className="recommend-actions">
+                        <Pill tone={priorityMeta.tone}>{priorityMeta.label}</Pill>
+                        <button
+                          type="button"
+                          className="text-button"
+                          onClick={() => openEvidence(item)}
+                        >
+                          View Evidence
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="roadmap-block">
+              <span className="eyebrow">RECOMMENDED ROADMAP</span>
+              <ol className="roadmap-list">
+                {missing.slice(0, 4).map((item, index) => (
+                  <li key={`${item.skill}-roadmap`} className="roadmap-item">
+                    <span className="roadmap-index">{String(index + 1).padStart(2, '0')}</span>
+                    <div className="roadmap-copy">
+                      <b>{item.skill}</b>
+                      <small>{getPriorityMeta(item).label}</small>
+                    </div>
+                    <button type="button" className="text-button" onClick={() => openEvidence(item)}>
+                      View Evidence
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </section>
+        )}
+      </div>
+
+      {evidence && (
+        <EvidencePanel
+          district={evidence.district}
+          role={evidence.role}
+          skill={evidence.skill}
+          priority={evidence.priority}
+          explanation={evidence.explanation}
+          onClose={() => setEvidence(null)}
+        />
+      )}
+    </Page>
+  );
+}
+
+function Curriculum({ district, setDistrict }) {
+  const [course, setCourse] = useState('Java Development');
+  const [generated, setGenerated] = useState(false);
+
+  const selectedCourse = courses[course];
+  const profile = districts[district];
+
+  const marketSignals = useMemo(
+    () =>
+      selectedCourse.core.map((skill) => {
+        const match = profile.signals.find((signal) => signal.skill === skill);
+        return (
+          match || {
+            skill,
+            jobDemand: 0,
+            demandGrowth: 0,
+            candidateSupply: 0,
+            priority: 'Moderate',
+            futureDemand: 0,
+            sector: 'Role baseline',
+          }
+        );
+      }),
+    [profile.signals, selectedCourse.core],
+  );
+
+  const gaps = selectedCourse.core.filter((skill) => selectedCourse.coverage[skill] !== 'Strong');
+  const modernize = selectedCourse.legacy.length;
+  const analyzed = selectedCourse.core.length;
+  const coverageScore = Object.values(selectedCourse.coverage).reduce((total, value) => {
+    if (value === 'Strong') return total + 1;
+    if (value === 'Partial') return total + 0.5;
+    return total;
+  }, 0);
+  const alignment = Math.round((coverageScore / analyzed) * 100);
+
+  const recommendation = [...gaps]
+    .map((skill) => ({ skill, signal: marketSignals.find((signal) => signal.skill === skill) }))
+    .sort((a, b) => (b.signal?.jobDemand || 0) - (a.signal?.jobDemand || 0));
+
+  return (
+    <Page
+      eyebrow="CURRICULUM INTELLIGENCE"
+      title="See where curriculum falls behind industry demand."
+      sub="SkillBridge compares the academic path with local market demand and identifies the highest-value updates."
+    >
+      <div className="course">
+        <label>
+          Course
+          <select value={course} onChange={(event) => { setCourse(event.target.value); setGenerated(false); }}>
+            {Object.keys(courses).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Market
+          <Select value={district} onChange={(value) => { setDistrict(value); setGenerated(false); }} />
+        </label>
+
+        <div className="alignment-box">
+          <b>{alignment}%</b>
+          <span>
+            Industry alignment
+            <small>{alignment < 60 ? 'Needs modernization' : 'Partially aligned'}</small>
+          </span>
+        </div>
+      </div>
+
+      <div className="kpis curriculum-kpis">
+        <Kpi icon={Target} value={analyzed} label="Skills analyzed" />
+        <Kpi icon={ShieldAlert} value={gaps.length} label="Curriculum gaps" warn />
+        <Kpi icon={BookOpen} value={modernize} label="Modules to modernize" />
+      </div>
+
+      <section className="card">
+        <Head title="Curriculum → market gap" text={`${district} market signals mapped against ${course}`} />
+        <div className="table market-table">
+          <div className="row tablehead">
+            <span>Skill</span>
+            <span>Demand</span>
+            <span>Forecast</span>
+            <span>Coverage</span>
+            <span>Status</span>
+          </div>
+
+          {marketSignals.map((signal) => {
+            const coverage = selectedCourse.coverage[signal.skill];
+            const status = coverage === 'Strong' ? 'green' : coverage === 'Partial' ? 'amber' : 'red';
+
+            return (
+              <div className="row" key={signal.skill}>
+                <b>{signal.skill}</b>
+                <span>{signal.jobDemand.toLocaleString()}</span>
+                <span>
+                  {signal.futureDemand.toLocaleString()} <small>+{signal.demandGrowth}%</small>
+                </span>
+                <span>{coverage || 'None'}</span>
+                <Pill tone={status}>{coverage || 'Gap'}</Pill>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {selectedCourse.legacy.length > 0 && (
+        <section className="card legacy">
+          <Head title="Legacy module guidance" text="Modernization priorities for outdated training content" />
+          {selectedCourse.legacy.map((module) => (
+            <div key={module.skill}>
+              <b>{module.skill}</b>
+              <p>{module.text}</p>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <button className="primary generate" onClick={() => setGenerated(true)}>
+        Generate curriculum update summary <ChevronRight size={17} />
+      </button>
+
+      {generated && (
+        <section className="card update-summary">
+          <Head title="Recommended update plan" text="Priority actions ranked against local market demand" />
+          <ol>
+            {recommendation.slice(0, 4).map((item) => (
+              <li key={item.skill}>
+                {item.skill} — {item.signal ? `${item.signal.futureDemand.toLocaleString()} projected demand` : 'Priority gap'}
+              </li>
+            ))}
+          </ol>
+          <p>Update the curriculum to cover the highest-demand skills first and add applied projects to validate learner readiness.</p>
+        </section>
+      )}
+    </Page>
+  );
+}
+
+function About() {
+  const pipeline = [
+    'Industry demand',
+    'Skill intelligence',
+    'Supply / demand gap',
+    'Curriculum alignment',
+    'Student skill gap',
+    'Recommendations',
+    'Human validation',
+    'Outcomes',
+    'Continuous learning',
+  ];
+
+  return (
+    <Page
+      eyebrow="TRUST & TRANSPARENCY"
+      title="How SkillBridge works"
+      sub="A product architecture that turns labour-market signals into curriculum and talent decisions."
+    >
+      <div className="grid two">
+        <section className="card">
+          <h3>SkillBridge product flow</h3>
+          <div className="pipeline-list">
+            {pipeline.map((step, index) => (
+              <p className="item" key={step}>
+                <i>{index + 1}</i>
+                {step}
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <h3>Production-ready architecture</h3>
+          <div className="pipeline-list">
+            {['Labour market data', 'NLP + skill extraction', 'Demand modelling', 'Supply analysis', 'Gap detection', 'Curriculum recommendations', 'Human review'].map((step, index) => (
+              <p className="item" key={step}>
+                <i>{index + 1}</i>
+                {step}
+              </p>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="card tech">
+        <div>
+          <h3>Current prototype</h3>
+          <p>React · JavaScript · Local structured data · Recharts · Rule-based intelligence model</p>
+        </div>
+        <div>
+          <h3>Future production stack</h3>
+          <p>Spring Boot · PostgreSQL · Python · scikit-learn · NLP pipelines · LLM explanation layer</p>
+        </div>
+      </section>
+
+      <p className="disclaimer">
+        This demo reflects representative prototype data for Smart India Hackathon 2026. The product is designed for a
+        future production pipeline and should not be treated as an official labour-market statistic release.
+      </p>
+    </Page>
+  );
+}
+
+export default function App() {
+  const [page, setPage] = useState('dashboard');
+  const [district, setDistrict] = useState('Pune');
+  const [mobile, setMobile] = useState(false);
+
+  const content =
+    page === 'dashboard' ? (
+      <Dashboard district={district} setDistrict={setDistrict} go={setPage} />
+    ) : page === 'intelligence' ? (
+      <Intelligence district={district} setDistrict={setDistrict} />
+    ) : page === 'student' ? (
+      <Student district={district} />
+    ) : page === 'curriculum' ? (
+      <Curriculum district={district} setDistrict={setDistrict} />
+    ) : (
+      <About />
+    );
+
+  return (
+    <div className="app-shell">
+      <aside className={mobile ? 'open' : ''}>
+        <div className="brand">
+          <i>
+            <BarChart3 size={19} />
+          </i>
+          <div>
+            SkillBridge
+            <small>Shift Era</small>
+          </div>
+          <button type="button" onClick={() => setMobile(false)}>
+            <X />
+          </button>
+        </div>
+
+        <nav>
+          {nav.map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              className={page === id ? 'active' : ''}
+              onClick={() => {
+                setPage(id);
+                setMobile(false);
+              }}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <footer>
+          <Cloud size={17} />
+          <span>SkillBridge prototype</span>
+          <small>Shift Era · SIH 2026</small>
+        </footer>
+      </aside>
+
+      <div className="content-panel">
+        <button className="menu" type="button" onClick={() => setMobile(true)}>
+          <Menu />
+        </button>
+        {content}
+      </div>
+    </div>
+  );
+}
